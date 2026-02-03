@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import SwarmGraph, { AgentStatus } from "@/components/SwarmGraph";
+import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
 
 interface Message {
@@ -18,10 +18,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [connected, setConnected] = useState(false);
 
-  const graphRef = useRef<{
-    addAgent: (id: string, label: string, role: string, parentId?: string) => void;
-    updateAgentStatus: (agentId: string, status: AgentStatus) => void;
-  } | null>(null);
+  const graphRef = useRef<SwarmGraphHandle>(null);
 
   const addMessage = useCallback((type: string, content: string) => {
     setMessages((prev) => [
@@ -42,9 +39,11 @@ export default function Home() {
     },
     onAgentSpawned: (agentId, name, role, parentId) => {
       addMessage("agent", `${name} (${role}) spawned`);
+      graphRef.current?.addAgent(agentId, role, parentId);
     },
     onAgentStatusChange: (agentId, status) => {
       addMessage("status", `Agent ${agentId.slice(0, 8)} → ${status}`);
+      graphRef.current?.updateAgentStatus(agentId, status as AgentStatus);
     },
     onArtifactCreated: (artifactId, name, agentId) => {
       addMessage("artifact", `Created: ${name}`);
@@ -132,7 +131,7 @@ export default function Home() {
 
       <div className="flex-1 flex overflow-hidden">
         <div className="w-3/5 border-r border-slate-700 bg-slate-850">
-          <SwarmGraph className="bg-slate-800" />
+          <SwarmGraph ref={graphRef} className="bg-slate-800" />
         </div>
 
         <div className="w-2/5 flex flex-col">

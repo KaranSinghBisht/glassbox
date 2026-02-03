@@ -98,3 +98,28 @@ export async function getProposal(proposalId: string) {
     where: eq(actionProposals.id, proposalId),
   });
 }
+
+const APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+
+export function waitForApproval(
+  proposalId: string
+): Promise<{ approved: boolean; reason?: string }> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      unsubscribe();
+      reject(new Error(`Approval timeout for proposal ${proposalId} after 24 hours`));
+    }, APPROVAL_TIMEOUT_MS);
+
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (event.type === "APPROVAL_GRANTED" && event.payload?.proposalId === proposalId) {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve({ approved: true });
+      } else if (event.type === "APPROVAL_REJECTED" && event.payload?.proposalId === proposalId) {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve({ approved: false, reason: event.payload?.reason });
+      }
+    });
+  });
+}
