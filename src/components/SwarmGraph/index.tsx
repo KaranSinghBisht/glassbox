@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, forwardRef, useImperativeHandle } from "react";
 import {
   ReactFlow,
   Background,
@@ -28,6 +28,12 @@ export interface SwarmGraphProps {
   className?: string;
 }
 
+export interface SwarmGraphHandle {
+  addAgent: (id: string, role: string, parentId?: string) => void;
+  updateAgentStatus: (agentId: string, status: AgentStatus) => void;
+  activateEdge: (sourceId: string, targetId: string, active?: boolean) => void;
+}
+
 const initialNodes: Node<AgentNodeData>[] = [
   {
     id: "orchestrator",
@@ -39,37 +45,47 @@ const initialNodes: Node<AgentNodeData>[] = [
 
 const initialEdges: Edge[] = [];
 
-export default function SwarmGraph({ className }: SwarmGraphProps) {
+const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmGraph({ className }, ref) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   const addAgent = useCallback(
-    (id: string, label: string, role: string, parentId?: string) => {
-      const existingNodes = nodes.length;
-      const xOffset = (existingNodes % 3) * 200;
-      const yOffset = Math.floor(existingNodes / 3) * 120 + 50;
+    (id: string, role: string, parentId?: string) => {
+      // Idempotent: skip if node already exists
+      setNodes((nds) => {
+        if (nds.some((n) => n.id === id)) return nds;
+        
+        const existingNodes = nds.length;
+        const xOffset = (existingNodes % 3) * 200;
+        const yOffset = Math.floor(existingNodes / 3) * 120 + 50;
 
-      const newNode: Node<AgentNodeData> = {
-        id,
-        type: "agent",
-        position: { x: 150 + xOffset, y: yOffset },
-        data: { label, role, status: "idle" as AgentStatus },
-      };
+        const newNode: Node<AgentNodeData> = {
+          id,
+          type: "agent",
+          position: { x: 150 + xOffset, y: yOffset },
+          data: { label: role, role, status: "idle" as AgentStatus },
+        };
 
-      setNodes((nds) => [...nds, newNode]);
+        return [...nds, newNode];
+      });
 
       if (parentId) {
-        const newEdge: Edge = {
-          id: `e-${parentId}-${id}`,
-          source: parentId,
-          target: id,
-          type: "pulse",
-          data: { active: false },
-        };
-        setEdges((eds) => [...eds, newEdge]);
+        setEdges((eds) => {
+          const edgeId = `e-${parentId}-${id}`;
+          if (eds.some((e) => e.id === edgeId)) return eds;
+          
+          const newEdge: Edge = {
+            id: edgeId,
+            source: parentId,
+            target: id,
+            type: "pulse",
+            data: { active: false },
+          };
+          return [...eds, newEdge];
+        });
       }
     },
-    [nodes.length, setNodes, setEdges]
+    [setNodes, setEdges]
   );
 
   const updateAgentStatus = useCallback(
@@ -86,7 +102,7 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
   );
 
   const activateEdge = useCallback(
-    (sourceId: string, targetId: string, active: boolean) => {
+    (sourceId: string, targetId: string, active: boolean = true) => {
       setEdges((eds) =>
         eds.map((edge) =>
           edge.source === sourceId && edge.target === targetId
@@ -97,6 +113,12 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
     },
     [setEdges]
   );
+
+  useImperativeHandle(ref, () => ({
+    addAgent,
+    updateAgentStatus,
+    activateEdge,
+  }), [addAgent, updateAgentStatus, activateEdge]);
 
   return (
     <div
@@ -134,6 +156,7 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
       </ReactFlow>
     </div>
   );
-}
+});
 
+export default SwarmGraph;
 export { type AgentStatus, type AgentNodeData };
