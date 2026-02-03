@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GlassBox
+
+**Agent Swarm Mission Control** - Watch AI agents collaborate in real-time with transparent decision-making.
+
+## What is GlassBox?
+
+GlassBox is a Generative UI application that visualizes multi-agent AI systems. Users can:
+
+- See agents spawn in a live graph visualization
+- Watch artifacts being created in real-time
+- Approve or reject agent actions via diff-before-execute UI
+- Track the full audit trail of agent decisions
+
+## Tech Stack
+
+- **Frontend**: Next.js 16 + React 19 + Tailwind CSS v4
+- **Visualization**: @xyflow/react (React Flow) for agent graph
+- **AI**: Google Gemini via @google/genai
+- **Database**: SQLite + Drizzle ORM
+- **Generative UI**: Tambo AI for component generation
 
 ## Getting Started
 
-First, run the development server:
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+2. **Set up environment**
+   ```bash
+   cp .env.example .env
+   # Add your GEMINI_API_KEY to .env
+   ```
+
+3. **Run database migrations**
+   ```bash
+   npx drizzle-kit migrate
+   ```
+
+4. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000)
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Mission Control UI                    │
+├─────────────────────────┬───────────────────────────────┤
+│     SwarmGraph          │       Tambo Console           │
+│   (React Flow)          │    (Generative UI)            │
+├─────────────────────────┴───────────────────────────────┤
+│                  SwarmEventBridge (SSE)                  │
+├─────────────────────────────────────────────────────────┤
+│                   Run Orchestrator                       │
+├──────────┬──────────┬──────────┬────────────────────────┤
+│Orchestrator│Researcher│ Builder │       Auditor          │
+├──────────┴──────────┴──────────┴────────────────────────┤
+│              AgentLLMClient (Gemini)                     │
+├─────────────────────────────────────────────────────────┤
+│            SQLite + Drizzle ORM                          │
+└─────────────────────────────────────────────────────────┘
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Agent Roles
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Agent | Role |
+|-------|------|
+| **Orchestrator** | Breaks down goals, creates plans, delegates to workers |
+| **Researcher** | Gathers context, identifies constraints and assumptions |
+| **Builder** | Creates artifacts (documents, code, copy) |
+| **Auditor** | Reviews work, identifies red flags, creates verification checklists |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## API Endpoints
 
-## Learn More
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/run` | POST | Start a new swarm run |
+| `/api/run/[id]` | GET | Get run with agents and artifacts |
+| `/api/run/events` | GET | SSE stream for real-time events |
+| `/api/proposals` | GET | List pending action proposals |
+| `/api/proposals/[id]/approve` | POST | Approve a proposal |
+| `/api/proposals/[id]/reject` | POST | Reject a proposal |
 
-To learn more about Next.js, take a look at the following resources:
+## Tambo Components
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Five Generative UI components for agent output:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **TaskPlanCard** - Shows plan steps with progress
+2. **ArtifactViewer** - Displays generated content
+3. **ActionProposalCard** - Shows proposed actions with risk levels
+4. **DiffBeforeAction** - Diff preview before applying changes
+5. **AuditSummary** - Confidence levels and verification checklists
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
