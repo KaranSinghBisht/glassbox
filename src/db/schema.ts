@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
 export const runs = sqliteTable("runs", {
@@ -99,6 +100,40 @@ export const approvals = sqliteTable("approvals", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+export const runsRelations = relations(runs, ({ many }) => ({
+  agents: many(agents),
+  events: many(events),
+  artifacts: many(artifacts),
+  actionProposals: many(actionProposals),
+}));
+
+export const agentsRelations = relations(agents, ({ one, many }) => ({
+  run: one(runs, { fields: [agents.runId], references: [runs.id] }),
+  events: many(events),
+  artifacts: many(artifacts),
+  actionProposals: many(actionProposals),
+}));
+
+export const eventsRelations = relations(events, ({ one }) => ({
+  run: one(runs, { fields: [events.runId], references: [runs.id] }),
+  agent: one(agents, { fields: [events.agentId], references: [agents.id] }),
+}));
+
+export const artifactsRelations = relations(artifacts, ({ one }) => ({
+  run: one(runs, { fields: [artifacts.runId], references: [runs.id] }),
+  agent: one(agents, { fields: [artifacts.agentId], references: [agents.id] }),
+}));
+
+export const actionProposalsRelations = relations(actionProposals, ({ one, many }) => ({
+  run: one(runs, { fields: [actionProposals.runId], references: [runs.id] }),
+  agent: one(agents, { fields: [actionProposals.agentId], references: [agents.id] }),
+  approvals: many(approvals),
+}));
+
+export const approvalsRelations = relations(approvals, ({ one }) => ({
+  proposal: one(actionProposals, { fields: [approvals.proposalId], references: [actionProposals.id] }),
+}));
 
 export type Run = typeof runs.$inferSelect;
 export type NewRun = typeof runs.$inferInsert;
