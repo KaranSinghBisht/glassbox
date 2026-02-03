@@ -21,8 +21,8 @@
 ## Progress Tracking
 
 - [x] **Task 1**: Project Scaffold with Tambo Starter ✅ DONE
-- [ ] **Task 2**: Database Schema with Drizzle + SQLite
-- [ ] **Task 3**: Zod Schemas for Shared Types
+- [x] **Task 2**: Database Schema with Drizzle + SQLite ✅ DONE
+- [x] **Task 3**: Zod Schemas for Shared Types ✅ DONE
 - [ ] **Task 4**: WebSocket Server for Event Streaming
 - [ ] **Task 5**: SwarmGraph Component with React Flow
 - [ ] **Task 6**: SwarmEventBridge Component
