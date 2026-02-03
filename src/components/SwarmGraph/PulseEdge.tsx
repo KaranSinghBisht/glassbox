@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { memo } from 'react';
-import { EdgeProps, getBezierPath } from '@xyflow/react';
+import { memo } from "react";
+import { EdgeProps, getBezierPath } from "@xyflow/react";
 
 function PulseEdge({
   id,
@@ -28,21 +28,19 @@ function PulseEdge({
 
   return (
     <>
-      {/* Base edge */}
       <path
         id={id}
         className="react-flow__edge-path"
         d={edgePath}
         style={{
           ...style,
-          stroke: isActive ? '#3b82f6' : '#94a3b8',
+          stroke: isActive ? "#3b82f6" : "#94a3b8",
           strokeWidth: 2,
-          fill: 'none',
+          fill: "none",
         }}
         markerEnd={markerEnd}
       />
-      
-      {/* Animated pulse overlay */}
+
       {isActive && (
         <g>
           <circle r="4" fill="#3b82f6">

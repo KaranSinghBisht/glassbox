@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useCallback } from 'react';
-import dagre from '@dagrejs/dagre';
-import { Node, Edge } from '@xyflow/react';
+import { useCallback } from "react";
+import dagre from "@dagrejs/dagre";
+import { Node, Edge } from "@xyflow/react";
 
 const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -12,7 +12,7 @@ const NODE_HEIGHT = 80;
 
 export function useDagreLayout() {
   const getLayoutedElements = useCallback(
-    (nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' = 'TB') => {
+    (nodes: Node[], edges: Edge[], direction: "TB" | "LR" = "TB") => {
       dagreGraph.setGraph({ rankdir: direction, nodesep: 50, ranksep: 80 });
 
       nodes.forEach((node) => {

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback } from "react";
 import {
   ReactFlow,
   Background,
@@ -10,11 +10,11 @@ import {
   useEdgesState,
   Node,
   Edge,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 
-import AgentNode, { AgentNodeData, AgentStatus } from './AgentNode';
-import PulseEdge from './PulseEdge';
+import AgentNode, { AgentNodeData, AgentStatus } from "./AgentNode";
+import PulseEdge from "./PulseEdge";
 
 const nodeTypes = {
   agent: AgentNode,
@@ -28,13 +28,12 @@ export interface SwarmGraphProps {
   className?: string;
 }
 
-// Demo initial nodes for testing
 const initialNodes: Node<AgentNodeData>[] = [
   {
-    id: 'orchestrator',
-    type: 'agent',
+    id: "orchestrator",
+    type: "agent",
     position: { x: 250, y: 50 },
-    data: { label: 'Orchestrator', role: 'orchestrator', status: 'idle' },
+    data: { label: "Orchestrator", role: "orchestrator", status: "idle" },
   },
 ];
 
@@ -44,19 +43,17 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Methods to update graph from outside
   const addAgent = useCallback(
     (id: string, label: string, role: string, parentId?: string) => {
-      // Calculate position based on existing nodes
       const existingNodes = nodes.length;
       const xOffset = (existingNodes % 3) * 200;
       const yOffset = Math.floor(existingNodes / 3) * 120 + 50;
 
       const newNode: Node<AgentNodeData> = {
         id,
-        type: 'agent',
+        type: "agent",
         position: { x: 150 + xOffset, y: yOffset },
-        data: { label, role, status: 'idle' as AgentStatus },
+        data: { label, role, status: "idle" as AgentStatus },
       };
 
       setNodes((nds) => [...nds, newNode]);
@@ -66,7 +63,7 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
           id: `e-${parentId}-${id}`,
           source: parentId,
           target: id,
-          type: 'pulse',
+          type: "pulse",
           data: { active: false },
         };
         setEdges((eds) => [...eds, newEdge]);
@@ -102,7 +99,10 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
   );
 
   return (
-    <div className={`w-full h-full ${className || ''}`} data-testid="swarm-graph">
+    <div
+      className={`w-full h-full ${className || ""}`}
+      data-testid="swarm-graph"
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -115,19 +115,19 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
       >
         <Background color="#e2e8f0" gap={16} />
         <Controls />
-        <MiniMap 
+        <MiniMap
           nodeColor={(node) => {
             const data = node.data as AgentNodeData;
             switch (data?.status) {
-              case 'thinking':
-              case 'acting':
-                return '#3b82f6';
-              case 'done':
-                return '#10b981';
-              case 'error':
-                return '#ef4444';
+              case "thinking":
+              case "acting":
+                return "#3b82f6";
+              case "done":
+                return "#10b981";
+              case "error":
+                return "#ef4444";
               default:
-                return '#94a3b8';
+                return "#94a3b8";
             }
           }}
         />
@@ -136,5 +136,4 @@ export default function SwarmGraph({ className }: SwarmGraphProps) {
   );
 }
 
-// Export methods for external control
 export { type AgentStatus, type AgentNodeData };
