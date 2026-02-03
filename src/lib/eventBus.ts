@@ -1,4 +1,6 @@
+import { randomUUID } from "crypto";
 import { SwarmEvent } from "./schemas";
+import { db, events } from "@/db";
 
 type EventListener = (event: SwarmEvent) => void;
 
@@ -20,6 +22,23 @@ class EventBus {
   }
 
   emit(event: SwarmEvent): void {
+    // Generate unique event ID
+    const eventId = randomUUID();
+
+    // Persist event to database (non-blocking, errors logged but don't break emit)
+    try {
+      db.insert(events).values({
+        id: eventId,
+        runId: event.runId,
+        agentId: event.agentId,
+        type: event.type,
+        payload: event.payload,
+        timestamp: new Date(event.ts),
+      }).run();
+    } catch (e) {
+      console.error("Failed to persist event to database:", e);
+    }
+
     this.globalListeners.forEach((listener) => {
       try {
         listener(event);
