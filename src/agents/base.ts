@@ -1,0 +1,171 @@
+import { db, agents, artifacts, actionProposals } from "@/db";
+import { eq } from "drizzle-orm";
+import { eventBus } from "@/lib/eventBus";
+import { getAgentLLMClient } from "@/lib/llm";
+import { AgentRole, AgentStatusType } from "@/lib/schemas";
+
+export interface AgentContext {
+  runId: string;
+  task: string;
+  parentId?: string;
+  data?: Record<string, unknown>;
+}
+
+export interface AgentResult {
+  status: "success" | "error";
+  message?: string;
+  artifacts?: Array<{ name: string; content: string; contentType?: string }>;
+  proposals?: Array<{
+    kind: string;
+    title: string;
+    rationale: string;
+    risk: "low" | "medium" | "high" | "critical";
+    diffBefore?: string;
+    diffAfter?: string;
+  }>;
+  data?: Record<string, unknown>;
+}
+
+export abstract class BaseAgent {
+  readonly id: string;
+  readonly name: string;
+  readonly role: AgentRole;
+  protected llm = getAgentLLMClient();
+
+  constructor(id: string, name: string, role: AgentRole) {
+    this.id = id;
+    this.name = name;
+    this.role = role;
+  }
+
+  protected abstract getSystemPrompt(): string;
+  protected abstract processTask(context: AgentContext): Promise<AgentResult>;
+
+  async spawn(runId: string, parentId?: string): Promise<void> {
+    await db.insert(agents).values({
+      id: this.id,
+      runId,
+      name: this.name,
+      role: this.role,
+      status: "idle",
+      parentId,
+    });
+
+    this.emitEvent(runId, "AGENT_SPAWNED", {
+      name: this.name,
+      role: this.role,
+      parentId,
+    });
+  }
+
+  async execute(context: AgentContext): Promise<AgentResult> {
+    await this.updateStatus(context.runId, "thinking");
+
+    try {
+      const result = await this.processTask(context);
+
+      if (result.artifacts?.length) {
+        await this.saveArtifacts(context.runId, result.artifacts);
+      }
+
+      if (result.proposals?.length) {
+        await this.createProposals(context.runId, result.proposals);
+      }
+
+      await this.updateStatus(context.runId, "done");
+      return result;
+    } catch (error) {
+      await this.updateStatus(context.runId, "error");
+      this.emitEvent(context.runId, "ERROR", {
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+      return { status: "error", message: String(error) };
+    }
+  }
+
+  protected async updateStatus(runId: string, status: AgentStatusType): Promise<void> {
+    await db
+      .update(agents)
+      .set({ status })
+      .where(eq(agents.id, this.id));
+
+    this.emitEvent(runId, "AGENT_STATUS", { status });
+  }
+
+  protected emitEvent(
+    runId: string,
+    type: string,
+    payload: Record<string, unknown>
+  ): void {
+    eventBus.emit({
+      type: type as any,
+      runId,
+      agentId: this.id,
+      ts: Date.now(),
+      payload: payload as any,
+    });
+  }
+
+  protected async saveArtifacts(
+    runId: string,
+    items: Array<{ name: string; content: string; contentType?: string }>
+  ): Promise<void> {
+    for (const item of items) {
+      const artifactId = crypto.randomUUID();
+      await db.insert(artifacts).values({
+        id: artifactId,
+        runId,
+        agentId: this.id,
+        name: item.name,
+        content: item.content,
+        contentType: item.contentType || "text/plain",
+      });
+
+      this.emitEvent(runId, "ARTIFACT_CREATED", {
+        artifactId,
+        name: item.name,
+        contentType: item.contentType,
+        contentPreview: item.content.slice(0, 100),
+      });
+    }
+  }
+
+  protected async createProposals(
+    runId: string,
+    items: Array<{
+      kind: string;
+      title: string;
+      rationale: string;
+      risk: "low" | "medium" | "high" | "critical";
+      diffBefore?: string;
+      diffAfter?: string;
+    }>
+  ): Promise<void> {
+    for (const item of items) {
+      const proposalId = crypto.randomUUID();
+      const actionId = crypto.randomUUID();
+
+      await db.insert(actionProposals).values({
+        id: proposalId,
+        runId,
+        agentId: this.id,
+        actionId,
+        kind: item.kind,
+        title: item.title,
+        rationale: item.rationale,
+        risk: item.risk,
+        diffBefore: item.diffBefore,
+        diffAfter: item.diffAfter,
+        status: "pending",
+      });
+
+      this.emitEvent(runId, "APPROVAL_REQUIRED", {
+        proposalId,
+        actionId,
+        kind: item.kind,
+        title: item.title,
+        risk: item.risk,
+      });
+    }
+  }
+}
