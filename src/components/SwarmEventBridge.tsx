@@ -18,6 +18,7 @@ export interface SwarmEventBridgeProps {
   onError?: (error: Error) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
+  onRawEvent?: (event: SwarmEvent) => void;
 }
 
 export function useSwarmEvents(props: SwarmEventBridgeProps) {
@@ -31,50 +32,16 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
     onError,
     onConnected,
     onDisconnected,
+    onRawEvent,
   } = props;
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const connect = useCallback(() => {
-    const url = runId
-      ? `/api/run/events?runId=${encodeURIComponent(runId)}`
-      : "/api/run/events";
-
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
-
-    eventSource.onopen = () => {
-      onConnected?.();
-    };
-
-    eventSource.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-
-        if (data.type === "connected") {
-          return;
-        }
-
-        const event = data as SwarmEvent;
-        handleEvent(event);
-      } catch (err) {
-        console.error("Failed to parse event:", err);
-      }
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      onDisconnected?.();
-
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
-      }, 3000);
-    };
-  }, [runId, onConnected, onDisconnected]);
-
   const handleEvent = useCallback(
     (event: SwarmEvent) => {
+      onRawEvent?.(event);
+      
       switch (event.type) {
         case "AGENT_SPAWNED":
           if (event.agentId && event.payload) {
@@ -133,21 +100,47 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
       onArtifactCreated,
       onApprovalRequired,
       onError,
+      onRawEvent,
     ]
   );
 
   useEffect(() => {
-    connect();
+    const url = runId
+      ? `/api/run/events?runId=${encodeURIComponent(runId)}`
+      : "/api/run/events";
+
+    const eventSource = new EventSource(url);
+    eventSourceRef.current = eventSource;
+
+    eventSource.onopen = () => {
+      onConnected?.();
+    };
+
+    eventSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === "connected") return;
+        handleEvent(data as SwarmEvent);
+      } catch (err) {
+        console.error("Failed to parse event:", err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      onDisconnected?.();
+      reconnectTimeoutRef.current = setTimeout(() => {
+        eventSourceRef.current = null;
+      }, 3000);
+    };
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
+      eventSource.close();
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [connect]);
+  }, [runId, onConnected, onDisconnected, handleEvent]);
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {

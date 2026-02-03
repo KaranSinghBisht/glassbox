@@ -3,6 +3,8 @@
 import { useState, useCallback, useRef } from "react";
 import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
+import TamboConsole from "@/components/TamboConsole";
+import { SwarmEvent } from "@/lib/schemas";
 
 interface Message {
   id: string;
@@ -16,6 +18,7 @@ export default function Home() {
   const [runId, setRunId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [events, setEvents] = useState<SwarmEvent[]>([]);
   const [connected, setConnected] = useState(false);
 
   const graphRef = useRef<SwarmGraphHandle>(null);
@@ -25,6 +28,10 @@ export default function Home() {
       ...prev,
       { id: crypto.randomUUID(), type, content, timestamp: new Date() },
     ]);
+  }, []);
+
+  const addEvent = useCallback((event: SwarmEvent) => {
+    setEvents((prev) => [...prev, event]);
   }, []);
 
   useSwarmEvents({
@@ -45,7 +52,7 @@ export default function Home() {
       addMessage("status", `Agent ${agentId.slice(0, 8)} → ${status}`);
       graphRef.current?.updateAgentStatus(agentId, status as AgentStatus);
     },
-    onArtifactCreated: (artifactId, name, agentId) => {
+    onArtifactCreated: (artifactId, name) => {
       addMessage("artifact", `Created: ${name}`);
     },
     onApprovalRequired: (proposalId, actionId, title) => {
@@ -54,6 +61,7 @@ export default function Home() {
     onError: (error) => {
       addMessage("error", error.message);
     },
+    onRawEvent: addEvent,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,6 +70,7 @@ export default function Home() {
 
     setIsLoading(true);
     setMessages([]);
+    setEvents([]);
 
     try {
       const response = await fetch("/api/run", {
@@ -130,11 +139,20 @@ export default function Home() {
       </form>
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="w-3/5 border-r border-slate-700 bg-slate-850">
+        <div className="w-1/2 border-r border-slate-700 bg-slate-850">
           <SwarmGraph ref={graphRef} className="bg-slate-800" />
         </div>
 
-        <div className="w-2/5 flex flex-col">
+        <div className="w-1/4 border-r border-slate-700 flex flex-col bg-slate-800">
+          <div className="px-4 py-3 border-b border-slate-700">
+            <h2 className="font-semibold text-sm text-slate-300">Actions</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <TamboConsole events={events} />
+          </div>
+        </div>
+
+        <div className="w-1/4 flex flex-col">
           <div className="px-4 py-3 border-b border-slate-700 bg-slate-800">
             <h2 className="font-semibold text-sm text-slate-300">Event Log</h2>
           </div>

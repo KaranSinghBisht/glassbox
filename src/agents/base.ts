@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { eventBus } from "@/lib/eventBus";
 import { getAgentLLMClient } from "@/lib/llm";
 import { AgentRole, AgentStatusType } from "@/lib/schemas";
+import { waitForApproval } from "@/lib/approvalService";
 
 export interface AgentContext {
   runId: string;
@@ -69,7 +70,26 @@ export abstract class BaseAgent {
       }
 
       if (result.proposals?.length) {
-        await this.createProposals(context.runId, result.proposals);
+        const proposalIds = await this.createProposals(context.runId, result.proposals);
+        
+        await this.updateStatus(context.runId, "waiting");
+        
+        for (const proposalId of proposalIds) {
+          const approval = await waitForApproval(proposalId);
+          if (!approval.approved) {
+            await this.updateStatus(context.runId, "error");
+            this.emitEvent(context.runId, "AGENT_STATUS", { 
+              status: "rejected", 
+              reason: approval.reason 
+            });
+            return { 
+              status: "error", 
+              message: `Proposal rejected: ${approval.reason || "No reason provided"}` 
+            };
+          }
+        }
+        
+        await this.updateStatus(context.runId, "acting");
       }
 
       await this.updateStatus(context.runId, "done");
@@ -140,7 +160,9 @@ export abstract class BaseAgent {
       diffBefore?: string;
       diffAfter?: string;
     }>
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const proposalIds: string[] = [];
+    
     for (const item of items) {
       const proposalId = crypto.randomUUID();
       const actionId = crypto.randomUUID();
@@ -166,6 +188,10 @@ export abstract class BaseAgent {
         title: item.title,
         risk: item.risk,
       });
+      
+      proposalIds.push(proposalId);
     }
+    
+    return proposalIds;
   }
 }
