@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useTamboThreadInput } from "@tambo-ai/react";
 import { SwarmEvent } from "@/lib/schemas";
 import ActionProposalCard from "./tambo/ActionProposalCard";
 import ArtifactViewer from "./tambo/ArtifactViewer";
@@ -11,8 +12,57 @@ interface TamboConsoleProps {
 
 type ApprovalState = "pending" | "approved" | "rejected";
 
+function formatEventForTambo(event: SwarmEvent): string | null {
+  switch (event.type) {
+    case "ARTIFACT_CREATED": {
+      const payload = event.payload as { name: string; contentPreview?: string };
+      return `An artifact was created: "${payload.name}". Display it using ArtifactViewer component.`;
+    }
+    case "APPROVAL_REQUIRED": {
+      const payload = event.payload as { title: string; risk: string };
+      return `Action needs approval: "${payload.title}" (risk level: ${payload.risk}). Show ActionProposalCard component.`;
+    }
+    case "RUN_CREATED": {
+      const payload = event.payload as { prompt: string };
+      return `New agent run started for: "${payload.prompt}". Show TaskPlanCard with the execution plan.`;
+    }
+    case "RUN_COMPLETED": {
+      const payload = event.payload as { status: string; summary?: string };
+      return `Run completed with status: ${payload.status}. ${payload.summary || ""} Show AuditSummary component.`;
+    }
+    default:
+      return null;
+  }
+}
+
 export default function TamboConsole({ events }: TamboConsoleProps) {
   const [approvalStates, setApprovalStates] = useState<Record<string, ApprovalState>>({});
+  const processedEventsRef = useRef<Set<string>>(new Set());
+  
+  const { setValue, submit } = useTamboThreadInput();
+
+  useEffect(() => {
+    const sendEventMessages = async () => {
+      for (const event of events) {
+        const eventKey = `${event.type}-${event.ts}-${event.agentId || ""}`;
+        
+        if (processedEventsRef.current.has(eventKey)) continue;
+        
+        const message = formatEventForTambo(event);
+        if (message) {
+          processedEventsRef.current.add(eventKey);
+          setValue(message);
+          try {
+            await submit();
+          } catch (error) {
+            console.error("Failed to send to Tambo:", error);
+          }
+        }
+      }
+    };
+    
+    sendEventMessages();
+  }, [events, setValue, submit]);
 
   const handleApprove = async (proposalId: string) => {
     try {
@@ -81,8 +131,8 @@ export default function TamboConsole({ events }: TamboConsoleProps) {
             return (
               <div key={key} className={`p-4 rounded-lg border ${
                 state === "approved" 
-                  ? "bg-green-50 border-green-200 text-green-700" 
-                  : "bg-red-50 border-red-200 text-red-700"
+                  ? "bg-green-900/30 border-green-800 text-green-300" 
+                  : "bg-red-900/30 border-red-800 text-red-300"
               }`}>
                 <span className="font-medium">
                   {state === "approved" ? "✅ Approved" : "❌ Rejected"}: {payload.title}
