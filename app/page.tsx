@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
 import TamboConsole from "@/components/TamboConsole";
+import TamboThread from "@/components/TamboThread";
 import { SwarmEvent } from "@/lib/schemas";
 
 interface Message {
@@ -144,11 +145,20 @@ export default function Home() {
         </div>
 
         <div className="w-1/4 border-r border-slate-700 flex flex-col bg-slate-800">
-          <div className="px-4 py-3 border-b border-slate-700">
-            <h2 className="font-semibold text-sm text-slate-300">Actions</h2>
+          <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+            <h2 className="font-semibold text-sm text-slate-300">AI Components</h2>
+            <span className="text-xs px-2 py-0.5 rounded bg-purple-900/50 text-purple-300">Tambo</span>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <TamboConsole events={events} />
+            <TamboThread />
+          </div>
+          <div className="border-t border-slate-700">
+            <div className="px-4 py-2 bg-slate-700/50">
+              <h3 className="text-xs font-medium text-slate-400">Fallback Actions</h3>
+            </div>
+            <div className="max-h-48 overflow-y-auto">
+              <TamboConsole events={events} />
+            </div>
           </div>
         </div>
 
