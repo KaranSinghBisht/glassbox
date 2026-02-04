@@ -54,8 +54,20 @@ Respond with JSON matching this structure:
         schema: PlanSchema.shape,
       });
 
+      console.log('[Orchestrator] Plan received:', JSON.stringify(plan, null, 2));
+
+      // Validate and fallback if no delegations
+      if (!plan.delegations || plan.delegations.length === 0) {
+        console.warn('[Orchestrator] No delegations in plan, creating default delegations');
+        plan.delegations = [
+          { agent: 'researcher', task: `Research and gather context for: ${context.task}`, priority: 1 },
+          { agent: 'builder', task: `Create deliverables for: ${context.task}`, priority: 2 },
+          { agent: 'auditor', task: `Review the work for: ${context.task}`, priority: 3 },
+        ];
+      }
+
       this.emitEvent(context.runId, "AGENT_MESSAGE", {
-        summary: `Created plan: ${plan.title} with ${plan.steps.length} steps`,
+        summary: `Created plan: ${plan.title} with ${plan.steps.length} steps and ${plan.delegations.length} delegations`,
       });
 
       return {
@@ -73,6 +85,7 @@ Respond with JSON matching this structure:
         ],
       };
     } catch (error) {
+      console.error('[Orchestrator] Failed to create plan:', error);
       return {
         status: "error",
         message: `Failed to create plan: ${error}`,

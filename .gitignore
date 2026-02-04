@@ -56,3 +56,9 @@ next-env.d.ts
 .vscode/
 *.swp
 *.swo
+
+# local dev notes
+AGENTS.md
+UI_IMPROVEMENT_SPEC.md
+improve.md
+gemini/

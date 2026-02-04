@@ -1,207 +1,209 @@
-"use client";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Box,
+  Shield,
+  Zap,
+  Layout,
+  GitBranch,
+} from "lucide-react";
+import { Button } from "@/components/ui/primitives";
 
-import { useState, useCallback, useRef } from "react";
-import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
-import { useSwarmEvents } from "@/components/SwarmEventBridge";
-import TamboConsole from "@/components/TamboConsole";
-import TamboThread from "@/components/TamboThread";
-import { SwarmEvent } from "@/lib/schemas";
-
-interface Message {
-  id: string;
-  type: string;
-  content: string;
-  timestamp: Date;
-}
-
-export default function Home() {
-  const [prompt, setPrompt] = useState("");
-  const [runId, setRunId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [events, setEvents] = useState<SwarmEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-
-  const graphRef = useRef<SwarmGraphHandle>(null);
-
-  const addMessage = useCallback((type: string, content: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), type, content, timestamp: new Date() },
-    ]);
-  }, []);
-
-  const addEvent = useCallback((event: SwarmEvent) => {
-    setEvents((prev) => [...prev, event]);
-  }, []);
-
-  useSwarmEvents({
-    runId: runId ?? undefined,
-    onConnected: () => {
-      setConnected(true);
-      addMessage("system", "Connected to event stream");
-    },
-    onDisconnected: () => {
-      setConnected(false);
-      addMessage("system", "Disconnected from event stream");
-    },
-    onAgentSpawned: (agentId, name, role, parentId) => {
-      addMessage("agent", `${name} (${role}) spawned`);
-      graphRef.current?.addAgent(agentId, role, parentId);
-    },
-    onAgentStatusChange: (agentId, status) => {
-      addMessage("status", `Agent ${agentId.slice(0, 8)} → ${status}`);
-      graphRef.current?.updateAgentStatus(agentId, status as AgentStatus);
-    },
-    onArtifactCreated: (artifactId, name) => {
-      addMessage("artifact", `Created: ${name}`);
-    },
-    onApprovalRequired: (proposalId, actionId, title) => {
-      addMessage("approval", `Approval needed: ${title}`);
-    },
-    onError: (error) => {
-      addMessage("error", error.message);
-    },
-    onRawEvent: addEvent,
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prompt.trim() || isLoading) return;
-
-    setIsLoading(true);
-    setMessages([]);
-    setEvents([]);
-
-    try {
-      const response = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start run");
-      }
-
-      const { runId: newRunId } = await response.json();
-      setRunId(newRunId);
-      addMessage("system", `Run started: ${newRunId.slice(0, 8)}...`);
-    } catch (error) {
-      addMessage("error", error instanceof Error ? error.message : "Unknown error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+export default function LandingPage() {
   return (
-    <div className="flex flex-col h-screen bg-slate-900 text-slate-100">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
-            G
-          </div>
-          <h1 className="text-xl font-semibold">GlassBox</h1>
-          <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-400">
-            Mission Control
-          </span>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500/30 overflow-x-hidden">
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-900/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/10 blur-[120px]" />
+      </div>
 
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              connected ? "bg-green-500" : "bg-slate-500"
-            }`}
-          />
-          <span className="text-sm text-slate-400">
-            {connected ? "Connected" : "Disconnected"}
-          </span>
-        </div>
-      </header>
-
-      <form onSubmit={handleSubmit} className="px-6 py-4 border-b border-slate-700">
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="What would you like the swarm to do?"
-            className="flex-1 px-4 py-3 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !prompt.trim()}
-            className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? "Starting..." : "Start Run"}
-          </button>
-        </div>
-      </form>
-
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-1/2 border-r border-slate-700 bg-slate-850">
-          <SwarmGraph ref={graphRef} className="bg-slate-800" />
-        </div>
-
-        <div className="w-1/4 border-r border-slate-700 flex flex-col bg-slate-800">
-          <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-slate-300">AI Components</h2>
-            <span className="text-xs px-2 py-0.5 rounded bg-purple-900/50 text-purple-300">Tambo</span>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <TamboThread />
-          </div>
-          <div className="border-t border-slate-700">
-            <div className="px-4 py-2 bg-slate-700/50">
-              <h3 className="text-xs font-medium text-slate-400">Fallback Actions</h3>
-            </div>
-            <div className="max-h-48 overflow-y-auto">
-              <TamboConsole events={events} />
-            </div>
-          </div>
-        </div>
-
-        <div className="w-1/4 flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-700 bg-slate-800">
-            <h2 className="font-semibold text-sm text-slate-300">Event Log</h2>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {messages.length === 0 ? (
-              <div className="text-center text-slate-500 py-12 animate-fade-in">
-                <div className="text-4xl mb-3">🔮</div>
-                <p className="font-medium">No events yet</p>
-                <p className="text-sm mt-1">Start a run to see agent activity</p>
+      <div className="relative z-10">
+        <nav className="border-b border-white/5 bg-slate-950/50 backdrop-blur-xl sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
+              <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Box className="w-5 h-5 text-white" />
               </div>
-            ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`px-3 py-2 rounded-lg text-sm animate-slide-in ${
-                    msg.type === "error"
-                      ? "bg-red-900/30 border border-red-800 text-red-300"
-                      : msg.type === "system"
-                      ? "bg-slate-700/50 text-slate-400"
-                      : msg.type === "approval"
-                      ? "bg-yellow-900/30 border border-yellow-800 text-yellow-300"
-                      : msg.type === "artifact"
-                      ? "bg-green-900/30 border border-green-800 text-green-300"
-                      : "bg-slate-800 text-slate-300"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium capitalize">{msg.type}</span>
-                    <span className="text-xs text-slate-500">
-                      {msg.timestamp.toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <p className="mt-1">{msg.content}</p>
-                </div>
-              ))
-            )}
+              GlassBox
+            </div>
+            <div className="hidden md:flex gap-8 text-sm font-medium text-slate-400">
+              <a href="#features" className="hover:text-white transition-colors">
+                Features
+              </a>
+              <a href="#how-it-works" className="hover:text-white transition-colors">
+                How it Works
+              </a>
+            </div>
+            <Link href="/dashboard">
+              <Button className="group">
+                Launch Mission Control
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
           </div>
-        </div>
+        </nav>
+
+        <section className="pt-32 pb-24 px-6 text-center">
+          <div className="max-w-4xl mx-auto space-y-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium animate-fade-in">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+              </span>
+              Tambo Hackathon 2026
+            </div>
+
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400 pb-2">
+              Agent Swarm <br className="hidden md:block" /> Mission Control
+            </h1>
+
+            <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+              Watch AI agents collaborate in real-time with{" "}
+              <span className="text-slate-100">transparent decision-making</span>.
+              The first dashboard designed for Human-in-the-Loop orchestration.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+              <Link href="/dashboard" className="w-full sm:w-auto">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto h-14 px-8 text-lg shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)]"
+                >
+                  Start Simulation
+                </Button>
+              </Link>
+              <Button
+                size="lg"
+                variant="secondary"
+                className="w-full sm:w-auto h-14 px-8 bg-white/5 border-white/10 hover:bg-white/10"
+              >
+                Read the Docs
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section id="features" className="py-24 border-t border-white/5 bg-slate-900/20">
+          <div className="max-w-7xl mx-auto px-6">
+            <h2 className="text-3xl font-bold mb-12 text-center">Why GlassBox?</h2>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  icon: GitBranch,
+                  title: "Graph Viz",
+                  desc: "Visualize agent interactions and data flow in real-time.",
+                },
+                {
+                  icon: Shield,
+                  title: "Human Loop",
+                  desc: "Intervene on high-risk actions before execution.",
+                },
+                {
+                  icon: Layout,
+                  title: "Generative UI",
+                  desc: "Agents render React components to communicate results.",
+                },
+                {
+                  icon: Zap,
+                  title: "Event Timeline",
+                  desc: "Millisecond-precision logging for full auditability.",
+                },
+              ].map((f, i) => (
+                <div
+                  key={i}
+                  className="group p-6 rounded-2xl bg-slate-900/50 border border-white/5 hover:border-blue-500/30 transition-all hover:-translate-y-1"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 mb-4 group-hover:bg-blue-500/20 transition-colors">
+                    <f.icon className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2 text-slate-100">
+                    {f.title}
+                  </h3>
+                  <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="how-it-works" className="py-24 px-6 max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">
+                Orchestration <br />
+                made simple.
+              </h2>
+              <p className="text-slate-400 mb-8 text-lg">
+                GlassBox turns the black box of LLM swarms into a transparent,
+                manageable workflow.
+              </p>
+
+              <div className="space-y-8">
+                {[
+                  {
+                    step: "01",
+                    title: "Define Objective",
+                    desc: "Enter a high-level goal. The Orchestrator agent breaks it down.",
+                  },
+                  {
+                    step: "02",
+                    title: "Swarm Deploys",
+                    desc: "Specialized agents (Research, Code, Audit) spawn instantly.",
+                  },
+                  {
+                    step: "03",
+                    title: "Review & Approve",
+                    desc: "GlassBox pauses for approval on sensitive actions.",
+                  },
+                  {
+                    step: "04",
+                    title: "Artifact Delivery",
+                    desc: "Receive code, plans, and reports in rich UI formats.",
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="flex gap-4">
+                    <div className="font-mono text-blue-500 font-bold pt-1">
+                      {item.step}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-200">{item.title}</h3>
+                      <p className="text-slate-500 text-sm mt-1">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative rounded-2xl border border-white/10 bg-slate-900/50 p-2 shadow-2xl rotate-1 lg:rotate-2 hover:rotate-0 transition-transform duration-500">
+              <div className="absolute inset-0 bg-blue-500/20 blur-[100px] -z-10" />
+              <div className="bg-slate-950 rounded-xl overflow-hidden border border-white/5">
+                <div className="h-8 bg-slate-900 border-b border-white/5 flex items-center gap-2 px-3">
+                  <div className="w-3 h-3 rounded-full bg-red-500/20" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/20" />
+                </div>
+                <div className="p-8 space-y-4 opacity-70">
+                  <div className="h-4 w-3/4 bg-slate-800 rounded animate-pulse" />
+                  <div className="h-4 w-1/2 bg-slate-800 rounded animate-pulse" />
+                  <div className="h-32 w-full bg-slate-900 border border-slate-800 rounded-lg p-4 mt-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 rounded-full bg-blue-500/20" />
+                      <div className="h-3 w-24 bg-slate-800 rounded" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-2 w-full bg-slate-800 rounded" />
+                      <div className="h-2 w-5/6 bg-slate-800 rounded" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <footer className="py-12 border-t border-white/5 text-center text-slate-500 text-sm">
+          <p>Built for Tambo Hackathon 2026. Powered by Generative UI.</p>
+        </footer>
       </div>
     </div>
   );

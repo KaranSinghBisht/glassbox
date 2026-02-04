@@ -166,10 +166,15 @@ Return ONLY the JSON, no markdown or explanation.`;
         cleaned = cleaned.slice(0, -3);
       }
       
-      return JSON.parse(cleaned.trim()) as T;
+      const parsed = JSON.parse(cleaned.trim()) as T;
+      console.log('[LLM] Structured response parsed successfully:', JSON.stringify(parsed, null, 2));
+      return parsed;
     } catch (e) {
-      console.error('Failed to parse JSON response:', response);
-      throw new Error('Invalid JSON response from LLM');
+      console.error('[LLM] Failed to parse JSON response:');
+      console.error('[LLM] Raw response:', response);
+      console.error('[LLM] Expected schema:', JSON.stringify(schema, null, 2));
+      console.error('[LLM] Parse error:', e);
+      throw new Error(`Invalid JSON response from LLM: ${response.slice(0, 200)}...`);
     }
   }
 

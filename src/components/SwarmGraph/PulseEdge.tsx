@@ -34,9 +34,10 @@ function PulseEdge({
         d={edgePath}
         style={{
           ...style,
-          stroke: isActive ? "#3b82f6" : "#94a3b8",
-          strokeWidth: 2,
+          stroke: isActive ? "#3b82f6" : "#475569",
+          strokeWidth: isActive ? 2.5 : 2,
           fill: "none",
+          filter: isActive ? "drop-shadow(0 0 4px #3b82f6)" : "none",
         }}
         markerEnd={markerEnd}
       />

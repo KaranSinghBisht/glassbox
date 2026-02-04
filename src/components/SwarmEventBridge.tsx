@@ -3,6 +3,9 @@
 import { useEffect, useRef, useCallback } from "react";
 import { SwarmEvent } from "@/lib/schemas";
 
+const MAX_RECONNECT_DELAY = 30000;
+const BASE_RECONNECT_DELAY = 1000;
+
 export interface SwarmEventBridgeProps {
   runId?: string;
   onAgentSpawned?: (
@@ -37,6 +40,8 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const isConnectingRef = useRef(false);
 
   const handleEvent = useCallback(
     (event: SwarmEvent) => {
@@ -104,7 +109,13 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
     ]
   );
 
-  useEffect(() => {
+  const connect = useCallback(() => {
+    if (isConnectingRef.current || eventSourceRef.current?.readyState === EventSource.OPEN) {
+      return;
+    }
+
+    isConnectingRef.current = true;
+    
     const url = runId
       ? `/api/run/events?runId=${encodeURIComponent(runId)}`
       : "/api/run/events";
@@ -113,6 +124,8 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
+      isConnectingRef.current = false;
+      reconnectAttemptRef.current = 0;
       onConnected?.();
     };
 
@@ -128,19 +141,35 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
 
     eventSource.onerror = () => {
       eventSource.close();
+      eventSourceRef.current = null;
+      isConnectingRef.current = false;
       onDisconnected?.();
-      reconnectTimeoutRef.current = setTimeout(() => {
-        eventSourceRef.current = null;
-      }, 3000);
-    };
-
-    return () => {
-      eventSource.close();
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      
+      const delay = Math.min(
+        BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttemptRef.current),
+        MAX_RECONNECT_DELAY
+      );
+      reconnectAttemptRef.current++;
+      
+      reconnectTimeoutRef.current = setTimeout(connect, delay);
     };
   }, [runId, onConnected, onDisconnected, handleEvent]);
+
+  useEffect(() => {
+    connect();
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      isConnectingRef.current = false;
+    };
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {

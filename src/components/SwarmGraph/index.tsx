@@ -134,10 +134,13 @@ const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmG
         edgeTypes={edgeTypes}
         fitView
         attributionPosition="bottom-left"
+        proOptions={{ hideAttribution: true }}
       >
-        <Background color="#e2e8f0" gap={16} />
-        <Controls />
+        <Background color="#334155" gap={20} size={1} />
+        <Controls className="!bg-slate-800 !border-slate-700 !rounded-lg [&>button]:!bg-slate-800 [&>button]:!border-slate-700 [&>button]:!text-slate-400 [&>button:hover]:!bg-slate-700" />
         <MiniMap
+          className="!bg-slate-900/80 !border-slate-700 !rounded-lg"
+          maskColor="rgba(15, 23, 42, 0.7)"
           nodeColor={(node) => {
             const data = node.data as AgentNodeData;
             switch (data?.status) {
@@ -148,8 +151,10 @@ const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmG
                 return "#10b981";
               case "error":
                 return "#ef4444";
+              case "waiting":
+                return "#f59e0b";
               default:
-                return "#94a3b8";
+                return "#475569";
             }
           }}
         />

@@ -1,20 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { ActionProposal } from "@/lib/schemas";
+import { Card, Badge, Button, cn } from "@/components/ui/primitives";
+import { AlertTriangle, Check, X } from "lucide-react";
 
 const riskStyles = {
-  low: { bg: "bg-green-100", text: "text-green-700", border: "border-green-300" },
-  medium: { bg: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-300" },
-  high: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300" },
-  critical: { bg: "bg-red-100", text: "text-red-700", border: "border-red-300" },
-};
-
-const kindIcons: Record<string, string> = {
-  write_artifact: "📝",
-  propose_patch: "🔧",
-  apply_patch: "🚀",
-  export_report: "📊",
-  execute_code: "⚙️",
+  low: { badge: "success" as const, border: "border-emerald-500/30" },
+  medium: { badge: "warning" as const, border: "border-amber-500/30" },
+  high: { badge: "danger" as const, border: "border-orange-500/30" },
+  critical: { badge: "danger" as const, border: "border-red-500/30" },
 };
 
 export interface ActionProposalCardProps {
@@ -28,75 +23,116 @@ export default function ActionProposalCard({
   onApprove,
   onReject,
 }: ActionProposalCardProps) {
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const risk = riskStyles[data.risk];
-  const icon = kindIcons[data.kind] || "❓";
+
+  const handleApprove = () => {
+    setStatus("approved");
+    onApprove?.(data.actionId);
+  };
+
+  const handleReject = () => {
+    setStatus("rejected");
+    onReject?.(data.actionId);
+  };
+
+  if (status !== "pending") {
+    return (
+      <Card className="p-6 flex flex-col items-center justify-center text-center animate-fade-in border-slate-800">
+        <div
+          className={cn(
+            "w-12 h-12 rounded-full flex items-center justify-center mb-3",
+            status === "approved"
+              ? "bg-emerald-500/10 text-emerald-500"
+              : "bg-red-500/10 text-red-500"
+          )}
+        >
+          {status === "approved" ? (
+            <Check className="w-6 h-6" />
+          ) : (
+            <X className="w-6 h-6" />
+          )}
+        </div>
+        <h3 className="text-slate-200 font-medium">Decision Recorded</h3>
+        <p className="text-sm text-slate-500 mt-1">
+          Proposal was {status} by human operator.
+        </p>
+      </Card>
+    );
+  }
 
   return (
-    <div
-      className={`bg-white rounded-lg shadow-md border-2 ${risk.border} overflow-hidden`}
+    <Card
+      className={cn(
+        "p-0 overflow-hidden animate-fade-in shadow-[0_0_30px_-10px_rgba(245,158,11,0.15)]",
+        risk.border
+      )}
     >
-      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{icon}</span>
-            <h3 className="font-semibold text-slate-800">{data.title}</h3>
+      <div className="bg-gradient-to-r from-amber-500/10 to-transparent p-4 border-b border-amber-500/10">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />
+              <span className="text-amber-500 font-bold text-xs tracking-wider uppercase">
+                Approval Required
+              </span>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-100">{data.title}</h3>
           </div>
-          <span
-            className={`text-xs font-semibold px-2 py-1 rounded ${risk.bg} ${risk.text}`}
-          >
-            {data.risk.toUpperCase()} RISK
-          </span>
+          <Badge variant={risk.badge} className="animate-pulse">
+            {data.risk.toUpperCase()} Risk
+          </Badge>
         </div>
-        <span className="text-xs text-slate-500 uppercase">{data.kind}</span>
+        {data.description && (
+          <p className="text-sm text-slate-400 mt-2">{data.description}</p>
+        )}
       </div>
 
-      <div className="p-4 space-y-3">
-        {data.description && (
-          <p className="text-sm text-slate-600">{data.description}</p>
-        )}
-
-        <div className="bg-slate-50 rounded p-3">
+      <div className="p-4 bg-slate-950/50 space-y-3">
+        <div className="bg-slate-900/50 rounded p-3 border border-white/5">
           <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">
             Rationale
           </h4>
-          <p className="text-sm text-slate-700">{data.rationale}</p>
+          <p className="text-sm text-slate-300">{data.rationale}</p>
         </div>
 
-        {data.preview.type !== "none" && (
-          <div className="bg-slate-50 rounded p-3">
-            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">
-              Preview
-            </h4>
-            {data.preview.type === "diff" && data.preview.diff && (
-              <pre className="text-xs bg-slate-900 text-slate-100 p-2 rounded overflow-x-auto">
-                {data.preview.diff}
-              </pre>
-            )}
-            {data.preview.type === "artifact" && data.preview.artifactName && (
-              <span className="text-sm text-blue-600">
-                📄 {data.preview.artifactName}
-              </span>
-            )}
-          </div>
-        )}
-
-        {data.requiresApproval && (
-          <div className="flex gap-2 pt-2">
-            <button
-              onClick={() => onApprove?.(data.actionId)}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => onReject?.(data.actionId)}
-              className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300 transition-colors"
-            >
-              Reject
-            </button>
+        {data.preview.type === "diff" && data.preview.diff && (
+          <div className="text-xs font-mono bg-black/40 p-3 rounded border border-white/5 text-slate-400 overflow-x-auto">
+            {data.preview.diff.split("\n").map((line, i) => (
+              <div
+                key={i}
+                className={
+                  line.startsWith("+")
+                    ? "text-emerald-400"
+                    : line.startsWith("-")
+                    ? "text-red-400"
+                    : ""
+                }
+              >
+                {line}
+              </div>
+            ))}
           </div>
         )}
       </div>
-    </div>
+
+      {data.requiresApproval && (
+        <div className="p-4 flex gap-3 justify-end bg-slate-900/50 border-t border-white/5">
+          <Button
+            variant="ghost"
+            onClick={handleReject}
+            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+          >
+            Reject
+          </Button>
+          <Button
+            onClick={handleApprove}
+            className="bg-amber-500 hover:bg-amber-600 text-black font-semibold shadow-amber-900/20"
+          >
+            Approve Action
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }

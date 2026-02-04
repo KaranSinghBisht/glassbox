@@ -99,6 +99,17 @@ export class RunOrchestrator {
       await this.updateStatus("failed");
 
       eventBus.emit({
+        type: "ERROR",
+        runId: this.runId,
+        ts: Date.now(),
+        payload: {
+          code: "RUN_EXECUTION_FAILED",
+          message: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+      });
+
+      eventBus.emit({
         type: "RUN_COMPLETED",
         runId: this.runId,
         ts: Date.now(),
