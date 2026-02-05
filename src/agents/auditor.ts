@@ -29,6 +29,7 @@ export class AuditorAgent extends BaseAgent {
 
   protected async processTask(context: AgentContext): Promise<AgentResult> {
     await this.updateStatus(context.runId, "thinking");
+    this.emitProgress(context.runId, "Reviewing submitted work...", { step: "review", percentage: 10 });
 
     const prompt = `Audit task: ${context.task}
 
@@ -53,11 +54,15 @@ Respond with JSON matching this structure:
 }`;
 
     try {
+      this.emitProgress(context.runId, "Analyzing artifacts and identifying issues...", { step: "analyze", percentage: 30 });
+      
       const audit = await this.llm.generateStructured<z.infer<typeof AuditSchema>>({
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: AuditSchema.shape,
       });
+
+      this.emitProgress(context.runId, "Compiling audit summary and recommendations...", { step: "compile", percentage: 80 });
 
       this.emitEvent(context.runId, "AGENT_MESSAGE", {
         summary: `Audit complete: ${audit.overallConfidence} confidence, ${audit.redFlags.length} red flags`,

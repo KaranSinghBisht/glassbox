@@ -25,6 +25,7 @@ export class BuilderAgent extends BaseAgent {
 
   protected async processTask(context: AgentContext): Promise<AgentResult> {
     await this.updateStatus(context.runId, "acting");
+    this.emitProgress(context.runId, "Preparing to build artifacts...", { step: "prepare", percentage: 10 });
 
     const prompt = `Build task: ${context.task}
 
@@ -42,11 +43,15 @@ Respond with JSON matching this structure:
 }`;
 
     try {
+      this.emitProgress(context.runId, "Generating content...", { step: "generate", percentage: 30 });
+      
       const build = await this.llm.generateStructured<z.infer<typeof BuildSchema>>({
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: BuildSchema.shape,
       });
+
+      this.emitProgress(context.runId, `Created ${build.artifacts.length} artifacts, preparing proposals...`, { step: "finalize", percentage: 80 });
 
       this.emitEvent(context.runId, "AGENT_MESSAGE", {
         summary: `Created ${build.artifacts.length} artifacts`,

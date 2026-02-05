@@ -126,6 +126,21 @@ export abstract class BaseAgent {
     });
   }
 
+  /**
+   * Emit a progress event to track granular execution steps
+   */
+  protected emitProgress(
+    runId: string,
+    progress: string,
+    options?: { percentage?: number; step?: string }
+  ): void {
+    this.emitEvent(runId, "AGENT_PROGRESS", {
+      progress,
+      percentage: options?.percentage,
+      step: options?.step,
+    });
+  }
+
   protected async saveArtifacts(
     runId: string,
     items: Array<{ name: string; content: string; contentType?: string }>

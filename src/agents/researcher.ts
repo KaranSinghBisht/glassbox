@@ -27,6 +27,7 @@ export class ResearcherAgent extends BaseAgent {
 
   protected async processTask(context: AgentContext): Promise<AgentResult> {
     await this.updateStatus(context.runId, "thinking");
+    this.emitProgress(context.runId, "Analyzing research requirements...", { step: "analyze", percentage: 10 });
 
     const prompt = `Research task: ${context.task}
 
@@ -47,11 +48,15 @@ Respond with JSON matching this structure:
 }`;
 
     try {
+      this.emitProgress(context.runId, "Gathering context and constraints...", { step: "gather", percentage: 30 });
+      
       const research = await this.llm.generateStructured<z.infer<typeof ResearchSchema>>({
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: ResearchSchema.shape,
       });
+
+      this.emitProgress(context.runId, "Compiling findings and recommendations...", { step: "compile", percentage: 80 });
 
       this.emitEvent(context.runId, "AGENT_MESSAGE", {
         summary: `Found ${research.findings.length} findings, ${research.recommendations.length} recommendations`,

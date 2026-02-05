@@ -6,6 +6,7 @@ export const EventType = z
     "AGENT_SPAWNED",
     "AGENT_STATUS",
     "AGENT_MESSAGE",
+    "AGENT_PROGRESS",
     "TOOL_PROPOSED",
     "APPROVAL_REQUIRED",
     "APPROVAL_GRANTED",
@@ -26,6 +27,7 @@ export const EventAgentStatus = z
   .describe("Status of the agent at event time");
 
 export const BaseEventSchema = z.object({
+  id: z.string().optional().describe("Unique event ID for deduplication"),
   type: EventType,
   runId: z.string().describe("ID of the run this event belongs to"),
   ts: z.number().describe("Unix timestamp in milliseconds"),
@@ -47,6 +49,12 @@ export const AgentMessagePayload = z.object({
   to: z.string().optional().describe("Target agent ID if directed"),
   summary: z.string().describe("Human-readable message summary"),
   dataRef: z.string().optional().describe("Reference to associated data"),
+});
+
+export const AgentProgressPayload = z.object({
+  progress: z.string().describe("Human-readable progress message"),
+  percentage: z.number().min(0).max(100).optional().describe("Completion percentage (0-100)"),
+  step: z.string().optional().describe("Current step identifier"),
 });
 
 export const ArtifactCreatedPayload = z.object({
@@ -88,6 +96,10 @@ export const EventSchema = z.discriminatedUnion("type", [
   BaseEventSchema.extend({
     type: z.literal("AGENT_MESSAGE"),
     payload: AgentMessagePayload,
+  }),
+  BaseEventSchema.extend({
+    type: z.literal("AGENT_PROGRESS"),
+    payload: AgentProgressPayload,
   }),
   BaseEventSchema.extend({
     type: z.literal("ARTIFACT_CREATED"),

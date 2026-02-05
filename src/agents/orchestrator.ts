@@ -32,6 +32,7 @@ export class OrchestratorAgent extends BaseAgent {
 
   protected async processTask(context: AgentContext): Promise<AgentResult> {
     await this.updateStatus(context.runId, "thinking");
+    this.emitProgress(context.runId, "Analyzing goal and planning approach...", { step: "analyze", percentage: 10 });
 
     const prompt = `User goal: ${context.task}
 
@@ -48,12 +49,15 @@ Respond with JSON matching this structure:
 }`;
 
     try {
+      this.emitProgress(context.runId, "Generating execution plan...", { step: "generate", percentage: 30 });
+      
       const plan = await this.llm.generateStructured<z.infer<typeof PlanSchema>>({
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: PlanSchema.shape,
       });
 
+      this.emitProgress(context.runId, "Plan generated, preparing delegations...", { step: "prepare", percentage: 70 });
       console.log('[Orchestrator] Plan received:', JSON.stringify(plan, null, 2));
 
       // Validate and fallback if no delegations
@@ -66,6 +70,8 @@ Respond with JSON matching this structure:
         ];
       }
 
+      this.emitProgress(context.runId, "Finalizing plan and artifacts...", { step: "finalize", percentage: 90 });
+      
       this.emitEvent(context.runId, "AGENT_MESSAGE", {
         summary: `Created plan: ${plan.title} with ${plan.steps.length} steps and ${plan.delegations.length} delegations`,
       });
