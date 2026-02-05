@@ -7,6 +7,7 @@ import { useSwarmEvents } from "@/components/SwarmEventBridge";
 import TamboConsole from "@/components/TamboConsole";
 import TamboThread from "@/components/TamboThread";
 import LLMMetrics from "@/components/ui/LLMMetrics";
+import AgentStatusPanel from "@/components/AgentStatusPanel";
 import { SwarmEvent } from "@/lib/schemas";
 import { Button, Badge, Tabs } from "@/components/ui/primitives";
 import { cn } from "@/components/ui/primitives";
@@ -35,6 +36,15 @@ interface Metrics {
   estimatedCost: number;
 }
 
+interface AgentInfo {
+  id: string;
+  name: string;
+  role: string;
+  status: string;
+  progress?: number;
+  lastMessage?: string;
+}
+
 export default function Dashboard() {
   const [prompt, setPrompt] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
@@ -44,6 +54,7 @@ export default function Dashboard() {
   const [connected, setConnected] = useState(false);
   const [activeTab, setActiveTab] = useState("Generative");
   const [metrics, setMetrics] = useState<Metrics>({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
 
   const graphRef = useRef<SwarmGraphHandle>(null);
   
@@ -95,10 +106,12 @@ export default function Dashboard() {
     onAgentSpawned: (agentId, name, role, parentId) => {
       addMessage("agent", `${name} (${role}) spawned`);
       graphRef.current?.addAgent(agentId, role, parentId);
+      setAgents(prev => [...prev, { id: agentId, name, role, status: "idle" }]);
     },
     onAgentStatusChange: (agentId, status) => {
       addMessage("status", `Agent ${agentId.slice(0, 8)} → ${status}`);
       graphRef.current?.updateAgentStatus(agentId, status as AgentStatus);
+      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status } : a));
     },
     onArtifactCreated: (artifactId, name) => {
       addMessage("artifact", `Created: ${name}`);
@@ -119,6 +132,7 @@ export default function Dashboard() {
     setIsLoading(true);
     setMessages([]);
     setEvents([]);
+    setAgents([]);
     setMetrics({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
     
     await fetch("/api/metrics", { method: "DELETE" }).catch(() => {});
@@ -148,7 +162,12 @@ export default function Dashboard() {
     setRunId(null);
     setMessages([]);
     setEvents([]);
+    setAgents([]);
     setPrompt("");
+  };
+
+  const handleAgentClick = (agentId: string) => {
+    console.log("Focus agent:", agentId);
   };
 
   return (
@@ -224,8 +243,11 @@ export default function Dashboard() {
               <Activity className="w-4 h-4 text-blue-400" /> Real-time Mesh
             </h2>
           </div>
-          <div className="flex-1">
+          <div className="flex-[3]">
             <SwarmGraph ref={graphRef} className="bg-slate-950" />
+          </div>
+          <div className="flex-[2] border-t border-white/5 min-h-0">
+            <AgentStatusPanel agents={agents} onAgentClick={handleAgentClick} />
           </div>
         </div>
 
