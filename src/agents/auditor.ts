@@ -60,6 +60,7 @@ Respond with JSON matching this structure:
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: AuditSchema.shape,
+        zodSchema: AuditSchema,
       });
 
       this.emitProgress(context.runId, "Compiling audit summary and recommendations...", { step: "compile", percentage: 80 });

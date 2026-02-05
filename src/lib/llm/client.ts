@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { ZodSchema } from 'zod';
 
 const MODELS = [
   'gemini-2.5-flash',
@@ -22,6 +23,7 @@ interface GenerateOptions {
 
 interface GenerateStructuredOptions<T> extends GenerateOptions {
   schema: object;
+  zodSchema?: ZodSchema<T>;
 }
 
 export interface LLMMetrics {
@@ -152,32 +154,29 @@ export class AgentLLMClient {
         }
         
         return text;
-      } catch (error: any) {
-        lastError = error;
-        console.error(`[LLM] Model ${this.getCurrentModel()} failed:`, error?.message || error);
+      } catch (error: unknown) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const errorObj = error as { status?: number; message?: string };
+        console.error(`[LLM] Model ${this.getCurrentModel()} failed:`, errorObj?.message || error);
         
-        // Rate limit - try exponential backoff
-        if (error?.status === 429) {
+        if (errorObj?.status === 429) {
           const delay = Math.pow(2, attempt) * 1000;
           console.log(`[LLM] Rate limited, waiting ${delay}ms before retry...`);
           await this.sleep(delay);
           
-          // After backoff, try switching models
           if (attempt >= 1) {
             this.switchToNextModel();
           }
           continue;
         }
         
-        // 404 or other model errors - try switching models
-        if (error?.status === 404 || error?.message?.includes('not found')) {
+        if (errorObj?.status === 404 || errorObj?.message?.includes('not found')) {
           console.log(`[LLM] Model not available, trying next...`);
           if (this.switchToNextModel()) {
             continue;
           }
         }
         
-        // Other errors - try switching models
         if (this.switchToNextModel()) {
           continue;
         }
@@ -190,7 +189,7 @@ export class AgentLLMClient {
   }
 
   async generateStructured<T>(options: GenerateStructuredOptions<T>): Promise<T> {
-    const { prompt, systemPrompt, schema, cache = true, maxRetries = 3 } = options;
+    const { prompt, systemPrompt, schema, zodSchema, cache = true, maxRetries = 3 } = options;
     
     const structuredPrompt = `${prompt}
 
@@ -206,9 +205,7 @@ Return ONLY the JSON, no markdown or explanation.`;
       maxRetries,
     });
 
-    // Parse JSON response
     try {
-      // Clean up response (remove markdown code blocks if present)
       let cleaned = response.trim();
       if (cleaned.startsWith('```json')) {
         cleaned = cleaned.slice(7);
@@ -220,10 +217,22 @@ Return ONLY the JSON, no markdown or explanation.`;
         cleaned = cleaned.slice(0, -3);
       }
       
-      const parsed = JSON.parse(cleaned.trim()) as T;
-      console.log('[LLM] Structured response parsed successfully:', JSON.stringify(parsed, null, 2));
-      return parsed;
+      const parsed = JSON.parse(cleaned.trim());
+      
+      if (zodSchema) {
+        const validated = zodSchema.safeParse(parsed);
+        if (!validated.success) {
+          console.error('[LLM] Zod validation failed:', validated.error.format());
+          throw new Error(`LLM response failed schema validation: ${validated.error.message}`);
+        }
+        return validated.data;
+      }
+      
+      return parsed as T;
     } catch (e) {
+      if (e instanceof Error && e.message.includes('schema validation')) {
+        throw e;
+      }
       console.error('[LLM] Failed to parse JSON response:');
       console.error('[LLM] Raw response:', response);
       console.error('[LLM] Expected schema:', JSON.stringify(schema, null, 2));

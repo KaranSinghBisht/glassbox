@@ -5,7 +5,7 @@ export const AgentRoleSchema = z
   .describe("The role/type of the agent in the swarm");
 
 export const AgentStatusSchema = z
-  .enum(["idle", "thinking", "waiting", "acting", "done", "error", "blocked", "escalated"])
+  .enum(["idle", "thinking", "waiting", "acting", "done", "error", "blocked", "escalated", "rejected"])
   .describe("Current operational status of the agent");
 
 export const AgentSchema = z.object({

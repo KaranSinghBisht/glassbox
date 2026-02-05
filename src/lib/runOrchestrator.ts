@@ -3,9 +3,6 @@ import { eq } from "drizzle-orm";
 import { eventBus } from "./eventBus";
 import {
   OrchestratorAgent,
-  ResearcherAgent,
-  BuilderAgent,
-  AuditorAgent,
   createAgent,
 } from "@/agents";
 
@@ -65,6 +62,8 @@ export class RunOrchestrator {
       );
 
       let researchData: Record<string, unknown> = {};
+      let hasFailure = false;
+      const failedAgents: string[] = [];
 
       for (const delegation of sortedDelegations) {
         const agent = createAgent(delegation.agent);
@@ -77,11 +76,16 @@ export class RunOrchestrator {
           data: researchData,
         });
 
-        if (result.status === "success" && result.data) {
-          if (delegation.agent === "researcher") {
-            researchData = { ...researchData, ...result.data };
-          }
+        if (result.status === "error") {
+          hasFailure = true;
+          failedAgents.push(`${delegation.agent}: ${result.message || "unknown error"}`);
+        } else if (result.data && delegation.agent === "researcher") {
+          researchData = { ...researchData, ...result.data };
         }
+      }
+
+      if (hasFailure) {
+        throw new Error(`Agent(s) failed: ${failedAgents.join("; ")}`);
       }
 
       await this.updateStatus("completed");

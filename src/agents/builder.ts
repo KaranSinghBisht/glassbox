@@ -49,6 +49,7 @@ Respond with JSON matching this structure:
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: BuildSchema.shape,
+        zodSchema: BuildSchema,
       });
 
       this.emitProgress(context.runId, `Created ${build.artifacts.length} artifacts, preparing proposals...`, { step: "finalize", percentage: 80 });

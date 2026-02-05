@@ -11,7 +11,8 @@ export type AgentStatus =
   | "done"
   | "error"
   | "blocked"
-  | "escalated";
+  | "escalated"
+  | "rejected";
 
 export type AgentNodeData = {
   label: string;
@@ -79,6 +80,13 @@ const statusConfig: Record<
     borderColor: "#ec4899",
     pulse: true,
     glow: true,
+  },
+  rejected: {
+    color: "#dc2626",
+    bgColor: "rgba(153, 27, 27, 0.3)",
+    borderColor: "#dc2626",
+    pulse: false,
+    glow: false,
   },
 };
 

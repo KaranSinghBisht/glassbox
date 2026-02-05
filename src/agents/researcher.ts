@@ -54,6 +54,7 @@ Respond with JSON matching this structure:
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: ResearchSchema.shape,
+        zodSchema: ResearchSchema,
       });
 
       this.emitProgress(context.runId, "Compiling findings and recommendations...", { step: "compile", percentage: 80 });

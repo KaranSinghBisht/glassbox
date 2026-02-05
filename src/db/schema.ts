@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
 export const runs = sqliteTable("runs", {
   id: text("id").primaryKey(),
@@ -25,12 +25,14 @@ export const agents = sqliteTable("agents", {
     enum: ["orchestrator", "researcher", "builder", "auditor"],
   }).notNull(),
   status: text("status", {
-    enum: ["idle", "thinking", "acting", "waiting", "done", "error", "blocked", "escalated"],
+    enum: ["idle", "thinking", "acting", "waiting", "done", "error", "blocked", "escalated", "rejected"],
   })
     .notNull()
     .default("idle"),
   parentId: text("parent_id"),
-});
+}, (table) => [
+  index("agents_run_id_idx").on(table.runId),
+]);
 
 export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
@@ -43,7 +45,10 @@ export const events = sqliteTable("events", {
   timestamp: integer("timestamp", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
-});
+}, (table) => [
+  index("events_run_id_idx").on(table.runId),
+  index("events_timestamp_idx").on(table.timestamp),
+]);
 
 export const artifacts = sqliteTable("artifacts", {
   id: text("id").primaryKey(),
@@ -59,7 +64,9 @@ export const artifacts = sqliteTable("artifacts", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
-});
+}, (table) => [
+  index("artifacts_run_id_idx").on(table.runId),
+]);
 
 export const actionProposals = sqliteTable("action_proposals", {
   id: text("id").primaryKey(),
@@ -87,7 +94,10 @@ export const actionProposals = sqliteTable("action_proposals", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
-});
+}, (table) => [
+  index("action_proposals_run_id_idx").on(table.runId),
+  index("action_proposals_status_idx").on(table.status),
+]);
 
 export const approvals = sqliteTable("approvals", {
   id: text("id").primaryKey(),

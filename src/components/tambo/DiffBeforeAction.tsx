@@ -42,7 +42,7 @@ export default function DiffBeforeAction({
       </div>
       <div className="font-mono text-xs overflow-x-auto">
         {lines.map((line, i) => {
-          let lineNum = i + 1;
+          const lineNum = i + 1;
           const isAddition = line.startsWith("+") && !line.startsWith("+++");
           const isDeletion = line.startsWith("-") && !line.startsWith("---");
           const isHunk = line.startsWith("@@");

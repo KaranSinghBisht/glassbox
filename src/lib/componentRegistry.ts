@@ -3,10 +3,8 @@
 import { ComponentType } from "react";
 import { TEventType } from "./schemas/events";
 
-import TaskPlanCard from "@/components/tambo/TaskPlanCard";
 import ArtifactViewer from "@/components/tambo/ArtifactViewer";
 import ActionProposalCard from "@/components/tambo/ActionProposalCard";
-import AuditSummary from "@/components/tambo/AuditSummary";
 import AgentMessageCard from "@/components/tambo/AgentMessageCard";
 import ErrorCard from "@/components/tambo/ErrorCard";
 
@@ -20,10 +18,8 @@ type ComponentRegistry = {
 };
 
 const registry: ComponentRegistry = {
-  RUN_CREATED: TaskPlanCard,
   ARTIFACT_CREATED: ArtifactViewer,
   APPROVAL_REQUIRED: ActionProposalCard,
-  RUN_COMPLETED: AuditSummary,
   AGENT_MESSAGE: AgentMessageCard,
   ERROR: ErrorCard,
 };

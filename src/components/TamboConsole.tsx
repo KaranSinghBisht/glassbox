@@ -49,8 +49,19 @@ function formatEventForTambo(event: SwarmEvent): string | null {
 export default function TamboConsole({ events }: TamboConsoleProps) {
   const [approvalStates, setApprovalStates] = useState<Record<string, ApprovalState>>({});
   const processedEventsRef = useRef<Set<string>>(new Set());
+  const prevEventsLengthRef = useRef<number>(0);
   
   const { setValue, submit } = useTamboThreadInput();
+
+  useEffect(() => {
+    if (events.length === 0 && prevEventsLengthRef.current > 0) {
+      processedEventsRef.current.clear();
+      // Reset approval states when events are cleared (new run started)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setApprovalStates({});
+    }
+    prevEventsLengthRef.current = events.length;
+  }, [events.length]);
 
   useEffect(() => {
     const sendEventMessages = async () => {

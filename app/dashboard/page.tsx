@@ -95,39 +95,55 @@ export default function Dashboard() {
     setEvents((prev) => [...prev, event]);
   }, []);
 
+  const handleConnected = useCallback(() => {
+    setConnected(true);
+    addMessage("system", "Connected to event stream");
+  }, [addMessage]);
+
+  const handleDisconnected = useCallback(() => {
+    setConnected(false);
+    addMessage("system", "Disconnected from event stream");
+  }, [addMessage]);
+
+  const handleAgentSpawned = useCallback((agentId: string, name: string, role: string, parentId?: string) => {
+    addMessage("agent", `${name} (${role}) spawned`);
+    graphRef.current?.addAgent(agentId, role, parentId);
+    setAgents(prev => [...prev, { id: agentId, name, role, status: "idle" }]);
+  }, [addMessage]);
+
+  const handleAgentStatusChange = useCallback((agentId: string, status: string) => {
+    addMessage("status", `Agent ${agentId.slice(0, 8)} → ${status}`);
+    graphRef.current?.updateAgentStatus(agentId, status as AgentStatus);
+    setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status } : a));
+  }, [addMessage]);
+
+  const handleArtifactCreated = useCallback((artifactId: string, name: string) => {
+    addMessage("artifact", `Created: ${name}`);
+  }, [addMessage]);
+
+  const handleApprovalRequired = useCallback((proposalId: string, actionId: string, title: string) => {
+    addMessage("approval", `Approval needed: ${title}`);
+  }, [addMessage]);
+
+  const handleError = useCallback((error: { message: string }) => {
+    addMessage("error", error.message);
+  }, [addMessage]);
+
+  const handleRunCompleted = useCallback((status: string) => {
+    setRunStatus(status === "success" ? "completed" : "failed");
+    addMessage("system", `Run ${status === "success" ? "completed successfully" : "failed"}`);
+  }, [addMessage]);
+
   useSwarmEvents({
     runId: runId ?? undefined,
-    onConnected: () => {
-      setConnected(true);
-      addMessage("system", "Connected to event stream");
-    },
-    onDisconnected: () => {
-      setConnected(false);
-      addMessage("system", "Disconnected from event stream");
-    },
-    onAgentSpawned: (agentId, name, role, parentId) => {
-      addMessage("agent", `${name} (${role}) spawned`);
-      graphRef.current?.addAgent(agentId, role, parentId);
-      setAgents(prev => [...prev, { id: agentId, name, role, status: "idle" }]);
-    },
-    onAgentStatusChange: (agentId, status) => {
-      addMessage("status", `Agent ${agentId.slice(0, 8)} → ${status}`);
-      graphRef.current?.updateAgentStatus(agentId, status as AgentStatus);
-      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status } : a));
-    },
-    onArtifactCreated: (artifactId, name) => {
-      addMessage("artifact", `Created: ${name}`);
-    },
-    onApprovalRequired: (proposalId, actionId, title) => {
-      addMessage("approval", `Approval needed: ${title}`);
-    },
-    onError: (error) => {
-      addMessage("error", error.message);
-    },
-    onRunCompleted: (status) => {
-      setRunStatus(status === "success" ? "completed" : "failed");
-      addMessage("system", `Run ${status === "success" ? "completed successfully" : "failed"}`);
-    },
+    onConnected: handleConnected,
+    onDisconnected: handleDisconnected,
+    onAgentSpawned: handleAgentSpawned,
+    onAgentStatusChange: handleAgentStatusChange,
+    onArtifactCreated: handleArtifactCreated,
+    onApprovalRequired: handleApprovalRequired,
+    onError: handleError,
+    onRunCompleted: handleRunCompleted,
     onRawEvent: addEvent,
   });
 
@@ -165,14 +181,15 @@ export default function Dashboard() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setRunId(null);
     setMessages([]);
     setEvents([]);
     setAgents([]);
     setPrompt("");
     setRunStatus("pending");
-  };
+    seenEventIds.current.clear();
+  }, []);
 
   const handleExport = () => {
     if (runId) {
@@ -302,7 +319,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="flex flex-col">
-                {messages.map((msg, idx) => (
+                {messages.map((msg) => (
                   <div
                     key={msg.id}
                     className="group flex gap-3 p-3 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer relative"

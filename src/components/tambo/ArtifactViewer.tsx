@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArtifactViewer as ArtifactViewerType } from "@/lib/schemas";
-import { Card, Badge, Button, cn } from "@/components/ui/primitives";
+import { Card, Badge, Button } from "@/components/ui/primitives";
 import { FileCode, Copy, ChevronDown, ChevronRight, Check } from "lucide-react";
 
 export interface ArtifactViewerProps {

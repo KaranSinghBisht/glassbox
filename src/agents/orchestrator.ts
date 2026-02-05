@@ -9,6 +9,7 @@ const PlanSchema = z.object({
       id: z.string(),
       label: z.string(),
       owner: z.enum(["orchestrator", "researcher", "builder", "auditor"]),
+      status: z.enum(["todo", "doing", "done", "blocked"]).default("todo"),
       notes: z.string().optional(),
     })
   ),
@@ -44,7 +45,7 @@ Create a structured plan to accomplish this goal. Include:
 Respond with JSON matching this structure:
 {
   "title": "string",
-  "steps": [{"id": "string", "label": "string", "owner": "orchestrator|researcher|builder|auditor", "notes": "optional"}],
+  "steps": [{"id": "string", "label": "string", "owner": "orchestrator|researcher|builder|auditor", "status": "todo|doing|done|blocked", "notes": "optional"}],
   "delegations": [{"agent": "researcher|builder|auditor", "task": "string", "priority": 1-3}]
 }`;
 
@@ -55,6 +56,7 @@ Respond with JSON matching this structure:
         prompt,
         systemPrompt: this.getSystemPrompt(),
         schema: PlanSchema.shape,
+        zodSchema: PlanSchema,
       });
 
       this.emitProgress(context.runId, "Plan generated, preparing delegations...", { step: "prepare", percentage: 70 });

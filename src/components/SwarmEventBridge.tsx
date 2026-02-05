@@ -44,6 +44,7 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptRef = useRef(0);
   const isConnectingRef = useRef(false);
+  const connectRef = useRef<() => void>(() => {});
 
   const handleEvent = useCallback(
     (event: SwarmEvent) => {
@@ -119,15 +120,17 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
   );
 
   const connect = useCallback(() => {
+    if (!runId) {
+      return;
+    }
+
     if (isConnectingRef.current || eventSourceRef.current?.readyState === EventSource.OPEN) {
       return;
     }
 
     isConnectingRef.current = true;
     
-    const url = runId
-      ? `/api/run/events?runId=${encodeURIComponent(runId)}`
-      : "/api/run/events";
+    const url = `/api/run/events?runId=${encodeURIComponent(runId)}`;
 
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
@@ -160,9 +163,13 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
       );
       reconnectAttemptRef.current++;
       
-      reconnectTimeoutRef.current = setTimeout(connect, delay);
+      reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), delay);
     };
   }, [runId, onConnected, onDisconnected, handleEvent]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     connect();

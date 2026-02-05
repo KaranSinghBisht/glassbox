@@ -2,7 +2,7 @@ import { db, agents, artifacts, actionProposals } from "@/db";
 import { eq } from "drizzle-orm";
 import { eventBus } from "@/lib/eventBus";
 import { getAgentLLMClient } from "@/lib/llm";
-import { AgentRole, AgentStatusType } from "@/lib/schemas";
+import { AgentRole, AgentStatusType, TEventType, SwarmEvent } from "@/lib/schemas";
 import { waitForApproval } from "@/lib/approvalService";
 
 export interface AgentContext {
@@ -65,8 +65,12 @@ export abstract class BaseAgent {
     try {
       const result = await this.processTask(context);
 
-      if (result.artifacts?.length) {
-        await this.saveArtifacts(context.runId, result.artifacts);
+      if (result.status === "error") {
+        await this.updateStatus(context.runId, "error");
+        this.emitEvent(context.runId, "ERROR", {
+          message: result.message || "Agent task failed",
+        });
+        return result;
       }
 
       if (result.proposals?.length) {
@@ -77,11 +81,7 @@ export abstract class BaseAgent {
         for (const proposalId of proposalIds) {
           const approval = await waitForApproval(proposalId);
           if (!approval.approved) {
-            await this.updateStatus(context.runId, "error");
-            this.emitEvent(context.runId, "AGENT_STATUS", { 
-              status: "rejected", 
-              reason: approval.reason 
-            });
+            await this.updateStatus(context.runId, "rejected");
             return { 
               status: "error", 
               message: `Proposal rejected: ${approval.reason || "No reason provided"}` 
@@ -90,6 +90,10 @@ export abstract class BaseAgent {
         }
         
         await this.updateStatus(context.runId, "acting");
+      }
+
+      if (result.artifacts?.length) {
+        await this.saveArtifacts(context.runId, result.artifacts);
       }
 
       await this.updateStatus(context.runId, "done");
@@ -114,16 +118,16 @@ export abstract class BaseAgent {
 
   protected emitEvent(
     runId: string,
-    type: string,
+    type: TEventType,
     payload: Record<string, unknown>
   ): void {
     eventBus.emit({
-      type: type as any,
+      type,
       runId,
       agentId: this.id,
       ts: Date.now(),
-      payload: payload as any,
-    });
+      payload,
+    } as SwarmEvent);
   }
 
   protected emitProgress(

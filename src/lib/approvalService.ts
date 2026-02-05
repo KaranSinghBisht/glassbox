@@ -1,23 +1,23 @@
 import { db, actionProposals, approvals } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { eventBus } from "./eventBus";
 
 export async function approveProposal(proposalId: string, reason?: string) {
-  const proposal = await db.query.actionProposals.findFirst({
-    where: eq(actionProposals.id, proposalId),
-  });
-
-  if (!proposal) {
-    throw new Error(`Proposal ${proposalId} not found`);
-  }
-
-  if (proposal.status !== "pending") {
-    throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
-  }
-
   const approvalId = crypto.randomUUID();
 
-  await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
+    const proposal = await tx.query.actionProposals.findFirst({
+      where: eq(actionProposals.id, proposalId),
+    });
+
+    if (!proposal) {
+      throw new Error(`Proposal ${proposalId} not found`);
+    }
+
+    if (proposal.status !== "pending") {
+      throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
+    }
+
     await tx.insert(approvals).values({
       id: approvalId,
       proposalId,
@@ -25,16 +25,22 @@ export async function approveProposal(proposalId: string, reason?: string) {
       reason,
     });
 
-    await tx
+    const updateResult = await tx
       .update(actionProposals)
       .set({ status: "approved" })
-      .where(eq(actionProposals.id, proposalId));
+      .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")));
+
+    return { proposal, updated: updateResult.changes > 0 };
   });
+
+  if (!result.updated) {
+    throw new Error(`Proposal ${proposalId} was already processed by another request`);
+  }
 
   eventBus.emit({
     type: "APPROVAL_GRANTED",
-    runId: proposal.runId,
-    agentId: proposal.agentId,
+    runId: result.proposal.runId,
+    agentId: result.proposal.agentId,
     ts: Date.now(),
     payload: { proposalId },
   });
@@ -43,21 +49,21 @@ export async function approveProposal(proposalId: string, reason?: string) {
 }
 
 export async function rejectProposal(proposalId: string, reason?: string) {
-  const proposal = await db.query.actionProposals.findFirst({
-    where: eq(actionProposals.id, proposalId),
-  });
-
-  if (!proposal) {
-    throw new Error(`Proposal ${proposalId} not found`);
-  }
-
-  if (proposal.status !== "pending") {
-    throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
-  }
-
   const approvalId = crypto.randomUUID();
 
-  await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
+    const proposal = await tx.query.actionProposals.findFirst({
+      where: eq(actionProposals.id, proposalId),
+    });
+
+    if (!proposal) {
+      throw new Error(`Proposal ${proposalId} not found`);
+    }
+
+    if (proposal.status !== "pending") {
+      throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
+    }
+
     await tx.insert(approvals).values({
       id: approvalId,
       proposalId,
@@ -65,16 +71,22 @@ export async function rejectProposal(proposalId: string, reason?: string) {
       reason,
     });
 
-    await tx
+    const updateResult = await tx
       .update(actionProposals)
       .set({ status: "rejected" })
-      .where(eq(actionProposals.id, proposalId));
+      .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")));
+
+    return { proposal, updated: updateResult.changes > 0 };
   });
+
+  if (!result.updated) {
+    throw new Error(`Proposal ${proposalId} was already processed by another request`);
+  }
 
   eventBus.emit({
     type: "APPROVAL_REJECTED",
-    runId: proposal.runId,
-    agentId: proposal.agentId,
+    runId: result.proposal.runId,
+    agentId: result.proposal.agentId,
     ts: Date.now(),
     payload: { proposalId, reason },
   });
@@ -84,7 +96,7 @@ export async function rejectProposal(proposalId: string, reason?: string) {
 
 export async function getPendingProposals(runId?: string) {
   const where = runId
-    ? eq(actionProposals.runId, runId)
+    ? and(eq(actionProposals.runId, runId), eq(actionProposals.status, "pending"))
     : eq(actionProposals.status, "pending");
 
   return db.query.actionProposals.findMany({
