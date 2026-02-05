@@ -7,6 +7,8 @@ export const EventType = z
     "AGENT_STATUS",
     "AGENT_MESSAGE",
     "AGENT_PROGRESS",
+    "AGENT_BLOCKED",
+    "AGENT_ESCALATED",
     "TOOL_PROPOSED",
     "APPROVAL_REQUIRED",
     "APPROVAL_GRANTED",
@@ -57,6 +59,16 @@ export const AgentProgressPayload = z.object({
   step: z.string().optional().describe("Current step identifier"),
 });
 
+export const AgentBlockedPayload = z.object({
+  reason: z.string().describe("Reason why the agent is blocked"),
+  blockedBy: z.string().optional().describe("What is blocking the agent"),
+});
+
+export const AgentEscalatedPayload = z.object({
+  reason: z.string().describe("Reason for escalation"),
+  severity: z.enum(["warning", "critical"]).default("warning").describe("Severity of escalation"),
+});
+
 export const ArtifactCreatedPayload = z.object({
   artifactId: z.string().describe("ID of the created artifact"),
   name: z.string().describe("Name of the artifact"),
@@ -100,6 +112,14 @@ export const EventSchema = z.discriminatedUnion("type", [
   BaseEventSchema.extend({
     type: z.literal("AGENT_PROGRESS"),
     payload: AgentProgressPayload,
+  }),
+  BaseEventSchema.extend({
+    type: z.literal("AGENT_BLOCKED"),
+    payload: AgentBlockedPayload,
+  }),
+  BaseEventSchema.extend({
+    type: z.literal("AGENT_ESCALATED"),
+    payload: AgentEscalatedPayload,
   }),
   BaseEventSchema.extend({
     type: z.literal("ARTIFACT_CREATED"),

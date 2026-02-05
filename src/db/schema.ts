@@ -25,7 +25,7 @@ export const agents = sqliteTable("agents", {
     enum: ["orchestrator", "researcher", "builder", "auditor"],
   }).notNull(),
   status: text("status", {
-    enum: ["idle", "thinking", "acting", "waiting", "done", "error"],
+    enum: ["idle", "thinking", "acting", "waiting", "done", "error", "blocked", "escalated"],
   })
     .notNull()
     .default("idle"),

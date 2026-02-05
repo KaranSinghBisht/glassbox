@@ -126,9 +126,6 @@ export abstract class BaseAgent {
     });
   }
 
-  /**
-   * Emit a progress event to track granular execution steps
-   */
   protected emitProgress(
     runId: string,
     progress: string,
@@ -139,6 +136,20 @@ export abstract class BaseAgent {
       percentage: options?.percentage,
       step: options?.step,
     });
+  }
+
+  protected async block(runId: string, reason: string, blockedBy?: string): Promise<void> {
+    await this.updateStatus(runId, "blocked");
+    this.emitEvent(runId, "AGENT_BLOCKED", { reason, blockedBy });
+  }
+
+  protected async escalate(
+    runId: string,
+    reason: string,
+    severity: "warning" | "critical" = "warning"
+  ): Promise<void> {
+    await this.updateStatus(runId, "escalated");
+    this.emitEvent(runId, "AGENT_ESCALATED", { reason, severity });
   }
 
   protected async saveArtifacts(
