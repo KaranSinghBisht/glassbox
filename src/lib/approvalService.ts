@@ -2,6 +2,9 @@ import { db, actionProposals, approvals } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { eventBus } from "./eventBus";
 
+const POLL_INTERVAL_MS = 1000;
+const APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+
 export async function approveProposal(proposalId: string, reason?: string) {
   const approvalId = crypto.randomUUID();
 
@@ -18,6 +21,15 @@ export async function approveProposal(proposalId: string, reason?: string) {
       throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
     }
 
+    const updateResult = await tx
+      .update(actionProposals)
+      .set({ status: "approved" })
+      .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")));
+
+    if (updateResult.changes === 0) {
+      throw new Error(`Proposal ${proposalId} was already processed by another request`);
+    }
+
     await tx.insert(approvals).values({
       id: approvalId,
       proposalId,
@@ -25,17 +37,8 @@ export async function approveProposal(proposalId: string, reason?: string) {
       reason,
     });
 
-    const updateResult = await tx
-      .update(actionProposals)
-      .set({ status: "approved" })
-      .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")));
-
-    return { proposal, updated: updateResult.changes > 0 };
+    return { proposal };
   });
-
-  if (!result.updated) {
-    throw new Error(`Proposal ${proposalId} was already processed by another request`);
-  }
 
   eventBus.emit({
     type: "APPROVAL_GRANTED",
@@ -64,6 +67,15 @@ export async function rejectProposal(proposalId: string, reason?: string) {
       throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
     }
 
+    const updateResult = await tx
+      .update(actionProposals)
+      .set({ status: "rejected" })
+      .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")));
+
+    if (updateResult.changes === 0) {
+      throw new Error(`Proposal ${proposalId} was already processed by another request`);
+    }
+
     await tx.insert(approvals).values({
       id: approvalId,
       proposalId,
@@ -71,17 +83,8 @@ export async function rejectProposal(proposalId: string, reason?: string) {
       reason,
     });
 
-    const updateResult = await tx
-      .update(actionProposals)
-      .set({ status: "rejected" })
-      .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")));
-
-    return { proposal, updated: updateResult.changes > 0 };
+    return { proposal };
   });
-
-  if (!result.updated) {
-    throw new Error(`Proposal ${proposalId} was already processed by another request`);
-  }
 
   eventBus.emit({
     type: "APPROVAL_REJECTED",
@@ -111,27 +114,33 @@ export async function getProposal(proposalId: string) {
   });
 }
 
-const APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-
-export function waitForApproval(
+export async function waitForApproval(
   proposalId: string
 ): Promise<{ approved: boolean; reason?: string }> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      unsubscribe();
-      reject(new Error(`Approval timeout for proposal ${proposalId} after 24 hours`));
-    }, APPROVAL_TIMEOUT_MS);
+  const startTime = Date.now();
 
-    const unsubscribe = eventBus.subscribe((event) => {
-      if (event.type === "APPROVAL_GRANTED" && event.payload?.proposalId === proposalId) {
-        clearTimeout(timeout);
-        unsubscribe();
-        resolve({ approved: true });
-      } else if (event.type === "APPROVAL_REJECTED" && event.payload?.proposalId === proposalId) {
-        clearTimeout(timeout);
-        unsubscribe();
-        resolve({ approved: false, reason: event.payload?.reason });
-      }
+  while (Date.now() - startTime < APPROVAL_TIMEOUT_MS) {
+    const proposal = await db.query.actionProposals.findFirst({
+      where: eq(actionProposals.id, proposalId),
     });
-  });
+
+    if (!proposal) {
+      throw new Error(`Proposal ${proposalId} not found`);
+    }
+
+    if (proposal.status === "approved") {
+      return { approved: true };
+    }
+
+    if (proposal.status === "rejected") {
+      const approval = await db.query.approvals.findFirst({
+        where: eq(approvals.proposalId, proposalId),
+      });
+      return { approved: false, reason: approval?.reason ?? undefined };
+    }
+
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  }
+
+  throw new Error(`Approval timeout for proposal ${proposalId} after 24 hours`);
 }

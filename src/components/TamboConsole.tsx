@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useTamboThreadInput } from "@tambo-ai/react";
 import { SwarmEvent, TEventType } from "@/lib/schemas";
 import { getComponentForEvent, hasComponentForEvent } from "@/lib/componentRegistry";
 import ActionProposalCard from "./tambo/ActionProposalCard";
@@ -15,47 +14,12 @@ interface TamboConsoleProps {
 
 type ApprovalState = "pending" | "approved" | "rejected";
 
-function formatEventForTambo(event: SwarmEvent): string | null {
-  switch (event.type) {
-    case "ARTIFACT_CREATED": {
-      const payload = event.payload as { name: string; contentPreview?: string };
-      return `An artifact was created: "${payload.name}". Display it using ArtifactViewer component.`;
-    }
-    case "APPROVAL_REQUIRED": {
-      const payload = event.payload as { title: string; risk: string };
-      return `Action needs approval: "${payload.title}" (risk level: ${payload.risk}). Show ActionProposalCard component.`;
-    }
-    case "RUN_CREATED": {
-      const payload = event.payload as { prompt: string };
-      return `New agent run started for: "${payload.prompt}". Show TaskPlanCard with the execution plan.`;
-    }
-    case "RUN_COMPLETED": {
-      const payload = event.payload as { status: string; summary?: string };
-      return `Run completed with status: ${payload.status}. ${payload.summary || ""} Show AuditSummary component.`;
-    }
-    case "AGENT_MESSAGE": {
-      const payload = event.payload as { summary: string };
-      return `Agent message: "${payload.summary}". Show AgentMessageCard component.`;
-    }
-    case "ERROR": {
-      const payload = event.payload as { message: string };
-      return `Error occurred: "${payload.message}". Show ErrorCard component.`;
-    }
-    default:
-      return null;
-  }
-}
-
 export default function TamboConsole({ events }: TamboConsoleProps) {
   const [approvalStates, setApprovalStates] = useState<Record<string, ApprovalState>>({});
-  const processedEventsRef = useRef<Set<string>>(new Set());
   const prevEventsLengthRef = useRef<number>(0);
   
-  const { setValue, submit } = useTamboThreadInput();
-
   useEffect(() => {
     if (events.length === 0 && prevEventsLengthRef.current > 0) {
-      processedEventsRef.current.clear();
       // Reset approval states when events are cleared (new run started)
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setApprovalStates({});
@@ -63,58 +27,29 @@ export default function TamboConsole({ events }: TamboConsoleProps) {
     prevEventsLengthRef.current = events.length;
   }, [events.length]);
 
-  useEffect(() => {
-    const sendEventMessages = async () => {
-      for (const event of events) {
-        const eventKey = `${event.type}-${event.ts}-${event.agentId || ""}`;
-        
-        if (processedEventsRef.current.has(eventKey)) continue;
-        
-        const message = formatEventForTambo(event);
-        if (message) {
-          processedEventsRef.current.add(eventKey);
-          setValue(message);
-          try {
-            await submit();
-          } catch (error) {
-            console.error("Failed to send to Tambo:", error);
-          }
-        }
-      }
-    };
-    
-    sendEventMessages();
-  }, [events, setValue, submit]);
-
   const handleApprove = async (proposalId: string) => {
-    try {
-      const response = await fetch(`/api/proposals/${proposalId}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      if (response.ok) {
-        setApprovalStates(prev => ({ ...prev, [proposalId]: "approved" }));
-      }
-    } catch (error) {
-      console.error("Failed to approve:", error);
+    const response = await fetch(`/api/proposals/${proposalId}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to approve");
     }
+    setApprovalStates(prev => ({ ...prev, [proposalId]: "approved" }));
   };
 
   const handleReject = async (proposalId: string) => {
-    try {
-      const response = await fetch(`/api/proposals/${proposalId}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "Rejected by user" }),
-      });
-      
-      if (response.ok) {
-        setApprovalStates(prev => ({ ...prev, [proposalId]: "rejected" }));
-      }
-    } catch (error) {
-      console.error("Failed to reject:", error);
+    const response = await fetch(`/api/proposals/${proposalId}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Rejected by user" }),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to reject");
     }
+    setApprovalStates(prev => ({ ...prev, [proposalId]: "rejected" }));
   };
 
   // Filter for events that have registered components
@@ -171,6 +106,7 @@ export default function TamboConsole({ events }: TamboConsoleProps) {
             <ActionProposalCard
               key={key}
               data={{
+                proposalId: payload.proposalId,
                 actionId: payload.actionId,
                 kind: kindValue,
                 title: payload.title,

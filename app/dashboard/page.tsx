@@ -5,6 +5,7 @@ import Link from "next/link";
 import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
 import TamboConsole from "@/components/TamboConsole";
+import TamboEventBridge from "@/components/TamboEventBridge";
 import TamboThread from "@/components/TamboThread";
 import LLMMetrics from "@/components/ui/LLMMetrics";
 import AgentStatusPanel from "@/components/AgentStatusPanel";
@@ -22,6 +23,7 @@ import {
   MessageSquare,
   Download,
 } from "lucide-react";
+import { LogoutButton } from "@/components/AuthProvider";
 
 interface Message {
   id: string;
@@ -87,9 +89,10 @@ export default function Dashboard() {
   }, []);
 
   const seenEventIds = useRef<Set<string>>(new Set());
+  const seenAgentIdsRef = useRef<Set<string>>(new Set());
   
   const addEvent = useCallback((event: SwarmEvent) => {
-    const eventId = event.id || `${event.type}-${event.ts}`;
+    const eventId = event.id || `${event.type}-${event.ts}-${event.agentId || ""}`;
     if (seenEventIds.current.has(eventId)) return;
     seenEventIds.current.add(eventId);
     setEvents((prev) => [...prev, event]);
@@ -106,9 +109,12 @@ export default function Dashboard() {
   }, [addMessage]);
 
   const handleAgentSpawned = useCallback((agentId: string, name: string, role: string, parentId?: string) => {
+    if (seenAgentIdsRef.current.has(agentId)) return;
+    seenAgentIdsRef.current.add(agentId);
+
     addMessage("agent", `${name} (${role}) spawned`);
     graphRef.current?.addAgent(agentId, role, parentId);
-    setAgents(prev => [...prev, { id: agentId, name, role, status: "idle" }]);
+    setAgents((prev) => [...prev, { id: agentId, name, role, status: "idle" }]);
   }, [addMessage]);
 
   const handleAgentStatusChange = useCallback((agentId: string, status: string) => {
@@ -155,6 +161,8 @@ export default function Dashboard() {
     setMessages([]);
     setEvents([]);
     setAgents([]);
+    seenEventIds.current.clear();
+    seenAgentIdsRef.current.clear();
     setMetrics({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
     setRunStatus("running");
     
@@ -189,6 +197,7 @@ export default function Dashboard() {
     setPrompt("");
     setRunStatus("pending");
     seenEventIds.current.clear();
+    seenAgentIdsRef.current.clear();
   }, []);
 
   const handleExport = () => {
@@ -238,6 +247,7 @@ export default function Dashboard() {
               RUN: {runId.slice(0, 8)}
             </div>
           )}
+          <LogoutButton />
         </div>
       </header>
 
@@ -296,6 +306,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+            <TamboEventBridge events={events} />
             {activeTab === "Generative" ? (
               <TamboThread />
             ) : (

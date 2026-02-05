@@ -10,6 +10,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const runId = url.searchParams.get("runId");
 
+  if (!runId) {
+    return new Response(JSON.stringify({ error: "runId parameter is required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -17,27 +24,25 @@ export async function GET(request: Request) {
         encoder.encode(`data: ${JSON.stringify({ type: "connected" })}\n\n`)
       );
 
-      if (runId) {
-        const historicalEvents = await db
-          .select()
-          .from(events)
-          .where(eq(events.runId, runId))
-          .orderBy(asc(events.timestamp));
+      const historicalEvents = await db
+        .select()
+        .from(events)
+        .where(eq(events.runId, runId))
+        .orderBy(asc(events.timestamp));
 
-        for (const event of historicalEvents) {
-          const swarmEvent = {
-            id: event.id,
-            type: event.type,
-            runId: event.runId,
-            agentId: event.agentId ?? undefined,
-            ts: event.timestamp.getTime(),
-            payload: event.payload,
-          } as SwarmEvent;
-          try {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(swarmEvent)}\n\n`));
-          } catch {
-            return;
-          }
+      for (const event of historicalEvents) {
+        const swarmEvent = {
+          id: event.id,
+          type: event.type,
+          runId: event.runId,
+          agentId: event.agentId ?? undefined,
+          ts: event.timestamp.getTime(),
+          payload: event.payload,
+        } as SwarmEvent;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(swarmEvent)}\n\n`));
+        } catch {
+          return;
         }
       }
 
@@ -49,9 +54,7 @@ export async function GET(request: Request) {
         }
       };
 
-      const unsubscribe = runId
-        ? eventBus.subscribeToRun(runId, sendEvent)
-        : eventBus.subscribe(sendEvent);
+      const unsubscribe = eventBus.subscribeToRun(runId, sendEvent);
 
       const heartbeat = setInterval(() => {
         try {

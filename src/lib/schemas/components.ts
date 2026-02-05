@@ -20,6 +20,7 @@ export const TaskPlanCardSchema = z.object({
 });
 
 export const ActionProposalSchema = z.object({
+  proposalId: z.string().describe("Database ID of the proposal for API calls"),
   actionId: z.string().describe("Unique identifier for this action"),
   kind: z
     .enum(["write_artifact", "propose_patch", "apply_patch", "export_report", "execute_code"])

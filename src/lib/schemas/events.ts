@@ -25,7 +25,7 @@ export const EventAgentRole = z
   .describe("Role of the agent that generated this event");
 
 export const EventAgentStatus = z
-  .enum(["idle", "thinking", "waiting", "acting", "done", "error"])
+  .enum(["idle", "thinking", "waiting", "acting", "done", "error", "blocked", "escalated", "rejected"])
   .describe("Status of the agent at event time");
 
 export const BaseEventSchema = z.object({

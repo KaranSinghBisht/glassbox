@@ -45,9 +45,17 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
   const reconnectAttemptRef = useRef(0);
   const isConnectingRef = useRef(false);
   const connectRef = useRef<() => void>(() => {});
+  const seenEventIdsRef = useRef<Set<string>>(new Set());
+  const lastRunIdRef = useRef<string | undefined>(undefined);
 
   const handleEvent = useCallback(
     (event: SwarmEvent) => {
+      const eventId = event.id || `${event.type}-${event.ts}-${event.agentId || ""}`;
+      if (seenEventIdsRef.current.has(eventId)) {
+        return;
+      }
+      seenEventIdsRef.current.add(eventId);
+
       onRawEvent?.(event);
       
       switch (event.type) {
@@ -126,6 +134,11 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
 
     if (isConnectingRef.current || eventSourceRef.current?.readyState === EventSource.OPEN) {
       return;
+    }
+
+    if (lastRunIdRef.current !== runId) {
+      seenEventIdsRef.current.clear();
+      lastRunIdRef.current = runId;
     }
 
     isConnectingRef.current = true;

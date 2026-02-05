@@ -35,6 +35,7 @@ const statusColors: Record<string, { bg: string; text: string; border: string }>
   error: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
   blocked: { bg: "bg-orange-500/10", text: "text-orange-400", border: "border-orange-500/20" },
   escalated: { bg: "bg-pink-500/10", text: "text-pink-400", border: "border-pink-500/20" },
+  rejected: { bg: "bg-rose-500/10", text: "text-rose-400", border: "border-rose-500/20" },
 };
 
 function AgentCard({ agent, onClick }: { agent: AgentInfo; onClick?: () => void }) {

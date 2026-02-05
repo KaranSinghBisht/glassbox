@@ -14,8 +14,8 @@ const riskStyles = {
 
 export interface ActionProposalCardProps {
   data: ActionProposal;
-  onApprove?: (actionId: string) => void;
-  onReject?: (actionId: string) => void;
+  onApprove?: (actionId: string) => Promise<void> | void;
+  onReject?: (actionId: string) => Promise<void> | void;
 }
 
 export default function ActionProposalCard({
@@ -23,20 +23,71 @@ export default function ActionProposalCard({
   onApprove,
   onReject,
 }: ActionProposalCardProps) {
-  const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "loading">("pending");
+  const [error, setError] = useState<string | null>(null);
   const risk = riskStyles[data.risk];
 
-  const handleApprove = () => {
-    setStatus("approved");
-    onApprove?.(data.actionId);
+  const canApprove = Boolean(onApprove || data.proposalId);
+  const canReject = Boolean(onReject || data.proposalId);
+
+  const handleApprove = async () => {
+    setError(null);
+    if (!canApprove) {
+      setError("Missing proposalId; cannot submit approval.");
+      return;
+    }
+
+    setStatus("loading");
+    try {
+      if (onApprove) {
+        await onApprove(data.actionId);
+      } else if (data.proposalId) {
+        const res = await fetch(`/api/proposals/${data.proposalId}/approve`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed to approve");
+      }
+      setStatus("approved");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to approve";
+      setError(message);
+      setStatus("pending");
+    }
   };
 
-  const handleReject = () => {
-    setStatus("rejected");
-    onReject?.(data.actionId);
+  const handleReject = async () => {
+    setError(null);
+    if (!canReject) {
+      setError("Missing proposalId; cannot submit rejection.");
+      return;
+    }
+
+    setStatus("loading");
+    try {
+      if (onReject) {
+        await onReject(data.actionId);
+      } else if (data.proposalId) {
+        const res = await fetch(`/api/proposals/${data.proposalId}/reject`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed to reject");
+      }
+      setStatus("rejected");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to reject";
+      setError(message);
+      setStatus("pending");
+    }
   };
 
-  if (status !== "pending") {
+  if (status === "loading") {
+    return (
+      <Card className="p-6 flex flex-col items-center justify-center text-center animate-fade-in border-slate-800">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3 bg-blue-500/10 text-blue-500">
+          <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        </div>
+        <h3 className="text-slate-200 font-medium">Processing...</h3>
+      </Card>
+    );
+  }
+
+  if (status === "approved" || status === "rejected") {
     return (
       <Card className="p-6 flex flex-col items-center justify-center text-center animate-fade-in border-slate-800">
         <div
@@ -121,16 +172,24 @@ export default function ActionProposalCard({
           <Button
             variant="ghost"
             onClick={handleReject}
+            disabled={!canReject}
             className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
           >
             Reject
           </Button>
           <Button
             onClick={handleApprove}
+            disabled={!canApprove}
             className="bg-amber-500 hover:bg-amber-600 text-black font-semibold shadow-amber-900/20"
           >
             Approve Action
           </Button>
+        </div>
+      )}
+
+      {error && (
+        <div className="px-4 pb-4 text-xs text-red-400">
+          {error}
         </div>
       )}
     </Card>

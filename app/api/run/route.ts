@@ -1,7 +1,13 @@
 import { startRun } from "@/lib/runOrchestrator";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
+  const { allowed, resetAt } = checkRateLimit(request, 10, 60_000);
+  if (!allowed) {
+    return rateLimitResponse(resetAt);
+  }
+
   try {
     const { prompt } = await request.json();
 
