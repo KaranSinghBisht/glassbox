@@ -18,6 +18,7 @@ export interface SwarmEventBridgeProps {
   onEdgeActivate?: (sourceId: string, targetId: string, active: boolean) => void;
   onArtifactCreated?: (artifactId: string, name: string, agentId: string) => void;
   onApprovalRequired?: (proposalId: string, actionId: string, title: string) => void;
+  onRunCompleted?: (status: string) => void;
   onError?: (error: Error) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
@@ -32,6 +33,7 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
     onEdgeActivate,
     onArtifactCreated,
     onApprovalRequired,
+    onRunCompleted,
     onError,
     onConnected,
     onDisconnected,
@@ -96,6 +98,12 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
             onError?.(new Error(event.payload.message));
           }
           break;
+
+        case "RUN_COMPLETED":
+          if (event.payload) {
+            onRunCompleted?.(event.payload.status);
+          }
+          break;
       }
     },
     [
@@ -104,6 +112,7 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
       onEdgeActivate,
       onArtifactCreated,
       onApprovalRequired,
+      onRunCompleted,
       onError,
       onRawEvent,
     ]

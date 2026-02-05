@@ -20,6 +20,7 @@ import {
   Activity,
   Command,
   MessageSquare,
+  Download,
 } from "lucide-react";
 
 interface Message {
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("Generative");
   const [metrics, setMetrics] = useState<Metrics>({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [runStatus, setRunStatus] = useState<string>("pending");
 
   const graphRef = useRef<SwarmGraphHandle>(null);
   
@@ -122,6 +124,10 @@ export default function Dashboard() {
     onError: (error) => {
       addMessage("error", error.message);
     },
+    onRunCompleted: (status) => {
+      setRunStatus(status === "success" ? "completed" : "failed");
+      addMessage("system", `Run ${status === "success" ? "completed successfully" : "failed"}`);
+    },
     onRawEvent: addEvent,
   });
 
@@ -134,6 +140,7 @@ export default function Dashboard() {
     setEvents([]);
     setAgents([]);
     setMetrics({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
+    setRunStatus("running");
     
     await fetch("/api/metrics", { method: "DELETE" }).catch(() => {});
 
@@ -164,6 +171,13 @@ export default function Dashboard() {
     setEvents([]);
     setAgents([]);
     setPrompt("");
+    setRunStatus("pending");
+  };
+
+  const handleExport = () => {
+    if (runId) {
+      window.open(`/api/run/${runId}/export`, "_blank");
+    }
   };
 
   const handleAgentClick = (agentId: string) => {
@@ -229,9 +243,16 @@ export default function Dashboard() {
               {isLoading ? "Initializing..." : "Initialize Swarm"}
             </Button>
           ) : (
-            <Button type="button" variant="destructive" onClick={handleReset} className="gap-2">
-              <RotateCcw className="w-4 h-4" /> Reset
-            </Button>
+            <>
+              {(runStatus === "completed" || runStatus === "failed") && (
+                <Button type="button" variant="secondary" onClick={handleExport} className="gap-2">
+                  <Download className="w-4 h-4" /> Export
+                </Button>
+              )}
+              <Button type="button" variant="destructive" onClick={handleReset} className="gap-2">
+                <RotateCcw className="w-4 h-4" /> Reset
+              </Button>
+            </>
           )}
         </div>
       </form>
