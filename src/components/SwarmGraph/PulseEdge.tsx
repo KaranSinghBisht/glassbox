@@ -24,28 +24,54 @@ function PulseEdge({
     targetPosition,
   });
 
-  const isActive = data?.active ?? false;
+  const edgeData = data as { active?: boolean; color?: string } | undefined;
+  const isActive = edgeData?.active ?? false;
+  const edgeColor = edgeData?.color ?? "#3b82f6";
+  const inactiveColor = "#475569";
 
   return (
     <>
+      {isActive && (
+        <path
+          d={edgePath}
+          style={{
+            stroke: edgeColor,
+            strokeWidth: 8,
+            fill: "none",
+            opacity: 0.15,
+            filter: `blur(4px)`,
+          }}
+        />
+      )}
+      
       <path
         id={id}
         className="react-flow__edge-path"
         d={edgePath}
         style={{
           ...style,
-          stroke: isActive ? "#3b82f6" : "#475569",
+          stroke: isActive ? edgeColor : inactiveColor,
           strokeWidth: isActive ? 2.5 : 2,
           fill: "none",
-          filter: isActive ? "drop-shadow(0 0 4px #3b82f6)" : "none",
+          filter: isActive ? `drop-shadow(0 0 6px ${edgeColor})` : "none",
         }}
         markerEnd={markerEnd}
       />
 
       {isActive && (
         <g>
-          <circle r="4" fill="#3b82f6">
-            <animateMotion dur="1.5s" repeatCount="indefinite">
+          <circle r="5" fill={edgeColor} opacity="0.9">
+            <animateMotion dur="1.2s" repeatCount="indefinite">
+              <mpath href={`#${id}`} />
+            </animateMotion>
+          </circle>
+          <circle r="3" fill="#ffffff" opacity="0.8">
+            <animateMotion dur="1.2s" repeatCount="indefinite">
+              <mpath href={`#${id}`} />
+            </animateMotion>
+          </circle>
+          <circle r="5" fill={edgeColor} opacity="0.6">
+            <animateMotion dur="1.2s" repeatCount="indefinite" begin="0.4s">
               <mpath href={`#${id}`} />
             </animateMotion>
           </circle>
