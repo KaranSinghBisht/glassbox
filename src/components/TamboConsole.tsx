@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useTamboThreadInput } from "@tambo-ai/react";
-import { SwarmEvent } from "@/lib/schemas";
+import { SwarmEvent, TEventType } from "@/lib/schemas";
+import { getComponentForEvent, hasComponentForEvent } from "@/lib/componentRegistry";
 import ActionProposalCard from "./tambo/ActionProposalCard";
 import ArtifactViewer from "./tambo/ArtifactViewer";
+import AgentMessageCard from "./tambo/AgentMessageCard";
+import ErrorCard from "./tambo/ErrorCard";
 
 interface TamboConsoleProps {
   events: SwarmEvent[];
@@ -29,6 +32,14 @@ function formatEventForTambo(event: SwarmEvent): string | null {
     case "RUN_COMPLETED": {
       const payload = event.payload as { status: string; summary?: string };
       return `Run completed with status: ${payload.status}. ${payload.summary || ""} Show AuditSummary component.`;
+    }
+    case "AGENT_MESSAGE": {
+      const payload = event.payload as { summary: string };
+      return `Agent message: "${payload.summary}". Show AgentMessageCard component.`;
+    }
+    case "ERROR": {
+      const payload = event.payload as { message: string };
+      return `Error occurred: "${payload.message}". Show ErrorCard component.`;
     }
     default:
       return null;
@@ -95,9 +106,9 @@ export default function TamboConsole({ events }: TamboConsoleProps) {
     }
   };
 
+  // Filter for events that have registered components
   const renderableEvents = events.filter(e => 
-    e.type === "ARTIFACT_CREATED" || 
-    e.type === "APPROVAL_REQUIRED"
+    hasComponentForEvent(e.type as TEventType)
   );
 
   if (renderableEvents.length === 0) {
@@ -116,8 +127,10 @@ export default function TamboConsole({ events }: TamboConsoleProps) {
     <div className="space-y-4 p-4 overflow-y-auto">
       {renderableEvents.map((event, index) => {
         const key = `${event.type}-${index}-${event.ts}`;
+        const eventType = event.type as TEventType;
         
-        if (event.type === "APPROVAL_REQUIRED") {
+        // Special handling for APPROVAL_REQUIRED (needs callbacks)
+        if (eventType === "APPROVAL_REQUIRED") {
           const payload = event.payload as {
             proposalId: string;
             actionId: string;
@@ -162,7 +175,8 @@ export default function TamboConsole({ events }: TamboConsoleProps) {
           );
         }
         
-        if (event.type === "ARTIFACT_CREATED") {
+        // Special handling for ARTIFACT_CREATED (needs data mapping)
+        if (eventType === "ARTIFACT_CREATED") {
           const payload = event.payload as {
             artifactId: string;
             name: string;
@@ -177,12 +191,50 @@ export default function TamboConsole({ events }: TamboConsoleProps) {
                 id: payload.artifactId,
                 name: payload.name,
                 agentId: event.agentId || "unknown",
-                content: payload.contentPreview,
+                content: payload.contentPreview || "",
                 contentType: payload.contentType,
                 createdAt: new Date(event.ts).toISOString(),
               }}
             />
           );
+        }
+        
+        // Handle AGENT_MESSAGE using registry
+        if (eventType === "AGENT_MESSAGE") {
+          const payload = event.payload as {
+            summary: string;
+            to?: string;
+            dataRef?: string;
+          };
+          
+          return (
+            <AgentMessageCard
+              key={key}
+              data={payload}
+            />
+          );
+        }
+        
+        // Handle ERROR using registry
+        if (eventType === "ERROR") {
+          const payload = event.payload as {
+            code?: string;
+            message: string;
+            stack?: string;
+          };
+          
+          return (
+            <ErrorCard
+              key={key}
+              data={payload}
+            />
+          );
+        }
+        
+        // Fallback: Try using registry for other event types
+        const Component = getComponentForEvent(eventType);
+        if (Component) {
+          return <Component key={key} data={event.payload} event={event} />;
         }
         
         return null;

@@ -81,8 +81,22 @@ export const DiffBeforeActionSchema = z.object({
   linesRemoved: z.number().optional().describe("Number of lines removed"),
 });
 
+export const AgentMessageCardSchema = z.object({
+  summary: z.string().describe("Human-readable message summary"),
+  to: z.string().optional().describe("Target agent ID if directed"),
+  dataRef: z.string().optional().describe("Reference to associated data"),
+});
+
+export const ErrorCardSchema = z.object({
+  code: z.string().optional().describe("Error code if available"),
+  message: z.string().describe("Error message"),
+  stack: z.string().optional().describe("Stack trace if available"),
+});
+
 export type TaskPlanCard = z.infer<typeof TaskPlanCardSchema>;
 export type ActionProposal = z.infer<typeof ActionProposalSchema>;
 export type AuditSummary = z.infer<typeof AuditSummarySchema>;
 export type ArtifactViewer = z.infer<typeof ArtifactViewerSchema>;
 export type DiffBeforeAction = z.infer<typeof DiffBeforeActionSchema>;
+export type AgentMessageCard = z.infer<typeof AgentMessageCardSchema>;
+export type ErrorCard = z.infer<typeof ErrorCardSchema>;

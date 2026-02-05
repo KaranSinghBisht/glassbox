@@ -6,6 +6,8 @@ import {
   AuditSummarySchema,
   ArtifactViewerSchema,
   DiffBeforeActionSchema,
+  AgentMessageCardSchema,
+  ErrorCardSchema,
 } from "@/lib/schemas";
 
 import TaskPlanCard from "./TaskPlanCard";
@@ -13,8 +15,18 @@ import ArtifactViewer from "./ArtifactViewer";
 import ActionProposalCard from "./ActionProposalCard";
 import DiffBeforeAction from "./DiffBeforeAction";
 import AuditSummary from "./AuditSummary";
+import AgentMessageCard from "./AgentMessageCard";
+import ErrorCard from "./ErrorCard";
 
-export { TaskPlanCard, ArtifactViewer, ActionProposalCard, DiffBeforeAction, AuditSummary };
+export { 
+  TaskPlanCard, 
+  ArtifactViewer, 
+  ActionProposalCard, 
+  DiffBeforeAction, 
+  AuditSummary,
+  AgentMessageCard,
+  ErrorCard,
+};
 
 export const tamboComponents = [
   {
@@ -46,5 +58,17 @@ export const tamboComponents = [
     description: "Displays audit results with confidence level, red flags, and verification checklist",
     component: AuditSummary,
     propsSchema: AuditSummarySchema,
+  },
+  {
+    name: "AgentMessageCard",
+    description: "Displays agent-to-agent messages with optional target and data references",
+    component: AgentMessageCard,
+    propsSchema: AgentMessageCardSchema,
+  },
+  {
+    name: "ErrorCard",
+    description: "Shows error details with code, message, and expandable stack trace",
+    component: ErrorCard,
+    propsSchema: ErrorCardSchema,
   },
 ];
