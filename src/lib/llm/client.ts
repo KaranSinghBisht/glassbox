@@ -1,8 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
 
 const MODELS = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
+  'gemini-2.5-flash',
+  'gemini-3-flash',
+  'gemini-2.5-flash-lite',
 ] as const;
 
 type Model = (typeof MODELS)[number];
@@ -23,11 +24,24 @@ interface GenerateStructuredOptions<T> extends GenerateOptions {
   schema: object;
 }
 
+export interface LLMMetrics {
+  inputTokens: number;
+  outputTokens: number;
+  calls: number;
+  estimatedCost: number;
+}
+
 export class AgentLLMClient {
   private client: GoogleGenAI;
   private cache: Map<string, CacheEntry> = new Map();
   private cacheTTL = 5 * 60 * 1000; // 5 minutes
   private currentModelIndex = 0;
+  
+  private totalInputTokens = 0;
+  private totalOutputTokens = 0;
+  private callCount = 0;
+  private static COST_PER_1K_INPUT = 0.00015;
+  private static COST_PER_1K_OUTPUT = 0.0006;
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -35,6 +49,35 @@ export class AgentLLMClient {
       throw new Error('GEMINI_API_KEY environment variable is required');
     }
     this.client = new GoogleGenAI({ apiKey });
+  }
+
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  private trackUsage(input: string, output: string): void {
+    const inputTokens = this.estimateTokens(input);
+    const outputTokens = this.estimateTokens(output);
+    this.totalInputTokens += inputTokens;
+    this.totalOutputTokens += outputTokens;
+    this.callCount++;
+  }
+
+  getMetrics(): LLMMetrics {
+    const inputCost = (this.totalInputTokens / 1000) * AgentLLMClient.COST_PER_1K_INPUT;
+    const outputCost = (this.totalOutputTokens / 1000) * AgentLLMClient.COST_PER_1K_OUTPUT;
+    return {
+      inputTokens: this.totalInputTokens,
+      outputTokens: this.totalOutputTokens,
+      calls: this.callCount,
+      estimatedCost: inputCost + outputCost,
+    };
+  }
+
+  clearMetrics(): void {
+    this.totalInputTokens = 0;
+    this.totalOutputTokens = 0;
+    this.callCount = 0;
   }
 
   private getCacheKey(prompt: string, systemPrompt?: string): string {
@@ -100,6 +143,8 @@ export class AgentLLMClient {
 
         const text = response.text || '';
         
+        this.trackUsage(prompt + (systemPrompt || ''), text);
+        
         // Cache successful response
         if (cache) {
           const cacheKey = this.getCacheKey(prompt, systemPrompt);
@@ -109,11 +154,12 @@ export class AgentLLMClient {
         return text;
       } catch (error: any) {
         lastError = error;
+        console.error(`[LLM] Model ${this.getCurrentModel()} failed:`, error?.message || error);
         
         // Rate limit - try exponential backoff
         if (error?.status === 429) {
           const delay = Math.pow(2, attempt) * 1000;
-          console.log(`Rate limited, waiting ${delay}ms before retry...`);
+          console.log(`[LLM] Rate limited, waiting ${delay}ms before retry...`);
           await this.sleep(delay);
           
           // After backoff, try switching models
@@ -121,6 +167,14 @@ export class AgentLLMClient {
             this.switchToNextModel();
           }
           continue;
+        }
+        
+        // 404 or other model errors - try switching models
+        if (error?.status === 404 || error?.message?.includes('not found')) {
+          console.log(`[LLM] Model not available, trying next...`);
+          if (this.switchToNextModel()) {
+            continue;
+          }
         }
         
         // Other errors - try switching models

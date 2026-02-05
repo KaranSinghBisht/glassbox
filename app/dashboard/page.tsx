@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
 import TamboConsole from "@/components/TamboConsole";
 import TamboThread from "@/components/TamboThread";
+import LLMMetrics from "@/components/ui/LLMMetrics";
 import { SwarmEvent } from "@/lib/schemas";
 import { Button, Badge, Tabs } from "@/components/ui/primitives";
 import { cn } from "@/components/ui/primitives";
@@ -27,6 +28,13 @@ interface Message {
   timestamp: Date;
 }
 
+interface Metrics {
+  inputTokens: number;
+  outputTokens: number;
+  calls: number;
+  estimatedCost: number;
+}
+
 export default function Dashboard() {
   const [prompt, setPrompt] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
@@ -35,8 +43,28 @@ export default function Dashboard() {
   const [events, setEvents] = useState<SwarmEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [activeTab, setActiveTab] = useState("Generative");
+  const [metrics, setMetrics] = useState<Metrics>({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
 
   const graphRef = useRef<SwarmGraphHandle>(null);
+  
+  useEffect(() => {
+    if (!runId) return;
+    
+    const pollMetrics = async () => {
+      try {
+        const res = await fetch("/api/metrics");
+        if (res.ok) {
+          const data = await res.json();
+          setMetrics(data);
+        }
+      } catch {
+      }
+    };
+    
+    pollMetrics();
+    const interval = setInterval(pollMetrics, 2000);
+    return () => clearInterval(interval);
+  }, [runId]);
 
   const addMessage = useCallback((type: string, content: string) => {
     setMessages((prev) => [
@@ -45,7 +73,12 @@ export default function Dashboard() {
     ]);
   }, []);
 
+  const seenEventIds = useRef<Set<string>>(new Set());
+  
   const addEvent = useCallback((event: SwarmEvent) => {
+    const eventId = event.id || `${event.type}-${event.ts}`;
+    if (seenEventIds.current.has(eventId)) return;
+    seenEventIds.current.add(eventId);
     setEvents((prev) => [...prev, event]);
   }, []);
 
@@ -86,6 +119,9 @@ export default function Dashboard() {
     setIsLoading(true);
     setMessages([]);
     setEvents([]);
+    setMetrics({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
+    
+    await fetch("/api/metrics", { method: "DELETE" }).catch(() => {});
 
     try {
       const response = await fetch("/api/run", {
@@ -130,6 +166,14 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-4">
+          {runId && metrics.calls > 0 && (
+            <LLMMetrics
+              inputTokens={metrics.inputTokens}
+              outputTokens={metrics.outputTokens}
+              calls={metrics.calls}
+              estimatedCost={metrics.estimatedCost}
+            />
+          )}
           <Badge variant={connected ? "success" : "default"} className="gap-1.5 transition-all">
             <div
               className={cn(
