@@ -22,10 +22,9 @@ class EventBus {
   }
 
   emit(event: SwarmEvent): void {
-    // Generate unique event ID
     const eventId = randomUUID();
+    const eventWithId = { ...event, id: eventId };
 
-    // Persist event to database (non-blocking, errors logged but don't break emit)
     try {
       db.insert(events).values({
         id: eventId,
@@ -41,7 +40,7 @@ class EventBus {
 
     this.globalListeners.forEach((listener) => {
       try {
-        listener(event);
+        listener(eventWithId);
       } catch (e) {
         console.error("Event listener error:", e);
       }
@@ -51,7 +50,7 @@ class EventBus {
     if (runListeners) {
       runListeners.forEach((listener) => {
         try {
-          listener(event);
+          listener(eventWithId);
         } catch (e) {
           console.error("Event listener error:", e);
         }

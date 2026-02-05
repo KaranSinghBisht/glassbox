@@ -26,6 +26,7 @@ export async function GET(request: Request) {
 
         for (const event of historicalEvents) {
           const swarmEvent = {
+            id: event.id,
             type: event.type,
             runId: event.runId,
             agentId: event.agentId ?? undefined,
