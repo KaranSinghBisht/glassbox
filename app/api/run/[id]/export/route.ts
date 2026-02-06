@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exportRunAsYAML } from "@/lib/exportConfig";
+import { exportRunAsYAML, exportRunAsJSON } from "@/lib/exportConfig";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const yaml = await exportRunAsYAML(id);
+    const format = request.nextUrl.searchParams.get("format");
 
+    if (format === "json") {
+      const json = await exportRunAsJSON(id);
+      return new NextResponse(json, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Disposition": `attachment; filename="run-${id.slice(0, 8)}.json"`,
+        },
+      });
+    }
+
+    const yaml = await exportRunAsYAML(id);
     return new NextResponse(yaml, {
       status: 200,
       headers: {
