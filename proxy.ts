@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_PATHS = [
-  { path: "/api/run", methods: ["POST"] },
-  { path: "/api/proposals/", methods: ["POST"] },
-  { path: "/api/metrics", methods: ["DELETE"] },
-];
+const PUBLIC_PATHS = ["/api/auth/login", "/api/auth/logout", "/api/auth/check"];
 
 const AUTH_CHECK_PATH = "/api/auth/check";
 const AUTH_COOKIE_NAME = "glassbox_token";
 
-function isProtectedRoute(pathname: string, method: string): boolean {
-  return PROTECTED_PATHS.some(
-    (route) =>
-      pathname.startsWith(route.path) &&
-      route.methods.includes(method.toUpperCase())
-  );
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
 function getToken(request: NextRequest): string | undefined {
@@ -40,9 +32,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const method = request.method;
-
-  if (!isProtectedRoute(pathname, method)) {
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 

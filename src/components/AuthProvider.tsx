@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 import { Button, Card } from "@/components/ui/primitives";
 import { Lock, LogOut } from "lucide-react";
 
@@ -78,30 +78,22 @@ function LoginModal({ onLogin }: { onLogin: (token: string) => Promise<boolean> 
   );
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    authRequired: false,
-    authenticated: true,
-    loading: true,
-  });
+export interface AuthProviderProps {
+  children: ReactNode;
+  initialAuthRequired?: boolean;
+  initialAuthenticated?: boolean;
+}
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const res = await fetch("/api/auth/check");
-      const data = await res.json();
-      setState({
-        authRequired: data.authRequired,
-        authenticated: data.authenticated,
-        loading: false,
-      });
-    } catch {
-      setState((s) => ({ ...s, loading: false }));
-    }
-  };
+export function AuthProvider({
+  children,
+  initialAuthRequired = false,
+  initialAuthenticated = true,
+}: AuthProviderProps) {
+  const [state, setState] = useState<AuthState>(() => ({
+    authRequired: initialAuthRequired,
+    authenticated: initialAuthenticated,
+    loading: false,
+  }));
 
   const login = async (token: string): Promise<boolean> => {
     try {

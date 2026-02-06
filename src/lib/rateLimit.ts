@@ -9,6 +9,20 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 30;
+const CLEANUP_INTERVAL_MS = 5 * 60_000;
+
+let lastCleanup = Date.now();
+
+function cleanupExpired() {
+  const now = Date.now();
+  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
+  lastCleanup = now;
+  for (const [key, entry] of rateLimitStore) {
+    if (now > entry.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+}
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -21,14 +35,18 @@ function getClientIp(request: NextRequest): string {
 export function checkRateLimit(
   request: NextRequest,
   limit = MAX_REQUESTS,
-  windowMs = WINDOW_MS
+  windowMs = WINDOW_MS,
+  endpoint?: string
 ): { allowed: boolean; remaining: number; resetAt: number } {
+  cleanupExpired();
+
   const ip = getClientIp(request);
+  const key = endpoint ? `${ip}:${endpoint}` : `${ip}:${request.nextUrl.pathname}`;
   const now = Date.now();
-  const entry = rateLimitStore.get(ip);
+  const entry = rateLimitStore.get(key);
 
   if (!entry || now > entry.resetAt) {
-    rateLimitStore.set(ip, { count: 1, resetAt: now + windowMs });
+    rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
     return { allowed: true, remaining: limit - 1, resetAt: now + windowMs };
   }
 
