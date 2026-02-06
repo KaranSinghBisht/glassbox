@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, forwardRef, useImperativeHandle } from "react";
+import { useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import {
   ReactFlow,
   Background,
@@ -8,8 +8,10 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   Node,
   Edge,
+  ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -33,6 +35,7 @@ export interface SwarmGraphHandle {
   addAgent: (id: string, role: string, parentId?: string) => void;
   updateAgentStatus: (agentId: string, status: AgentStatus) => void;
   activateEdge: (sourceId: string, targetId: string, active?: boolean) => void;
+  focusAgent: (agentId: string) => void;
 }
 
 const initialNodes: Node<AgentNodeData>[] = [
@@ -46,14 +49,21 @@ const initialNodes: Node<AgentNodeData>[] = [
 
 const initialEdges: Edge[] = [];
 
-const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmGraph({ className }, ref) {
+const SwarmGraphInner = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmGraphInner({ className }, ref) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { getLayoutedElements } = useDagreLayout();
+  const reactFlowInstance = useReactFlow();
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
-  nodesRef.current = nodes;
-  edgesRef.current = edges;
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
   const addAgent = useCallback(
     (id: string, role: string, parentId?: string) => {
@@ -67,7 +77,7 @@ const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmG
       };
 
       const nextNodes = [...nodesRef.current, newNode];
-      let nextEdges = [...edgesRef.current];
+      const nextEdges = [...edgesRef.current];
 
       if (parentId) {
         const edgeId = `e-${parentId}-${id}`;
@@ -85,8 +95,13 @@ const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmG
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nextNodes, nextEdges);
       setNodes(layoutedNodes as Node<AgentNodeData>[]);
       setEdges(layoutedEdges);
+
+      // Auto-fit viewport when graph grows
+      setTimeout(() => {
+        reactFlowInstance.fitView({ duration: 300, padding: 0.2 });
+      }, 50);
     },
-    [setNodes, setEdges, getLayoutedElements]
+    [setNodes, setEdges, getLayoutedElements, reactFlowInstance]
   );
 
   const updateAgentStatus = useCallback(
@@ -115,11 +130,41 @@ const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmG
     [setEdges]
   );
 
+  const focusAgent = useCallback(
+    (agentId: string) => {
+      const node = nodesRef.current.find((n) => n.id === agentId);
+      if (node) {
+        reactFlowInstance.setCenter(
+          node.position.x + 90,
+          node.position.y + 40,
+          { zoom: 1.5, duration: 400 }
+        );
+        // Briefly highlight by toggling a visual cue via status
+        setNodes((nds) =>
+          nds.map((n) => ({
+            ...n,
+            data: { ...n.data, focused: n.id === agentId },
+          }))
+        );
+        setTimeout(() => {
+          setNodes((nds) =>
+            nds.map((n) => ({
+              ...n,
+              data: { ...n.data, focused: false },
+            }))
+          );
+        }, 2000);
+      }
+    },
+    [reactFlowInstance, setNodes]
+  );
+
   useImperativeHandle(ref, () => ({
     addAgent,
     updateAgentStatus,
     activateEdge,
-  }), [addAgent, updateAgentStatus, activateEdge]);
+    focusAgent,
+  }), [addAgent, updateAgentStatus, activateEdge, focusAgent]);
 
   return (
     <div
@@ -161,6 +206,14 @@ const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmG
         />
       </ReactFlow>
     </div>
+  );
+});
+
+const SwarmGraph = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function SwarmGraph(props, ref) {
+  return (
+    <ReactFlowProvider>
+      <SwarmGraphInner ref={ref} {...props} />
+    </ReactFlowProvider>
   );
 });
 

@@ -4,7 +4,7 @@ import { eventBus } from "./eventBus";
 
 const INITIAL_POLL_MS = 500;
 const MAX_POLL_MS = 10_000;
-const APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const APPROVAL_TIMEOUT_MS = 60_000;
 
 export async function approveProposal(proposalId: string, reason?: string) {
   const approvalId = crypto.randomUUID();
@@ -145,5 +145,7 @@ export async function waitForApproval(
     pollInterval = Math.min(pollInterval * 1.5, MAX_POLL_MS);
   }
 
-  throw new Error(`Approval timeout for proposal ${proposalId} after 24 hours`);
+  // Auto-reject on timeout
+  await rejectProposal(proposalId, "Auto-rejected: approval timed out after 60s");
+  return { approved: false, reason: "Auto-rejected: approval timed out after 60s" };
 }

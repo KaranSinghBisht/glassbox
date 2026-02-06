@@ -12,13 +12,27 @@ interface Delegation {
   priority: number;
 }
 
+const activeRuns = new Map<string, AbortController>();
+
+export function cancelRun(runId: string): boolean {
+  const controller = activeRuns.get(runId);
+  if (controller) {
+    controller.abort();
+    activeRuns.delete(runId);
+    return true;
+  }
+  return false;
+}
+
 export class RunOrchestrator {
   private runId: string;
   private prompt: string;
+  private abortController: AbortController;
 
   constructor(runId: string, prompt: string) {
     this.runId = runId;
     this.prompt = prompt;
+    this.abortController = new AbortController();
   }
 
   static async create(prompt: string): Promise<RunOrchestrator> {
@@ -40,9 +54,18 @@ export class RunOrchestrator {
     return new RunOrchestrator(runId, prompt);
   }
 
+  private checkCancelled(): void {
+    if (this.abortController.signal.aborted) {
+      throw new Error("Run cancelled by user");
+    }
+  }
+
   async execute(): Promise<void> {
+    activeRuns.set(this.runId, this.abortController);
+
     try {
       await this.updateStatus("running");
+      this.checkCancelled();
 
       const orchestrator = new OrchestratorAgent();
       await orchestrator.spawn(this.runId);
@@ -51,6 +74,8 @@ export class RunOrchestrator {
         runId: this.runId,
         task: this.prompt,
       });
+
+      this.checkCancelled();
 
       if (planResult.status === "error") {
         throw new Error(planResult.message);
@@ -66,6 +91,8 @@ export class RunOrchestrator {
       const failedAgents: string[] = [];
 
       for (const delegation of sortedDelegations) {
+        this.checkCancelled();
+
         const agent = createAgent(delegation.agent);
         await agent.spawn(this.runId, orchestrator.id);
 
@@ -75,6 +102,8 @@ export class RunOrchestrator {
           parentId: orchestrator.id,
           data: researchData,
         });
+
+        this.checkCancelled();
 
         if (result.status === "error") {
           hasFailure = true;
@@ -100,6 +129,7 @@ export class RunOrchestrator {
         },
       });
     } catch (error) {
+      const isCancelled = this.abortController.signal.aborted;
       await this.updateStatus("failed");
 
       eventBus.emit({
@@ -107,7 +137,7 @@ export class RunOrchestrator {
         runId: this.runId,
         ts: Date.now(),
         payload: {
-          code: "RUN_EXECUTION_FAILED",
+          code: isCancelled ? "RUN_CANCELLED" : "RUN_EXECUTION_FAILED",
           message: error instanceof Error ? error.message : "Unknown error",
           stack: error instanceof Error ? error.stack : undefined,
         },
@@ -119,11 +149,15 @@ export class RunOrchestrator {
         ts: Date.now(),
         payload: {
           status: "failed",
-          summary: error instanceof Error ? error.message : "Unknown error",
+          summary: isCancelled
+            ? "Run cancelled by user"
+            : error instanceof Error ? error.message : "Unknown error",
         },
       });
 
       throw error;
+    } finally {
+      activeRuns.delete(this.runId);
     }
   }
 

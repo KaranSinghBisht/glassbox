@@ -19,6 +19,8 @@ export type AgentNodeData = {
   role: string;
   status: AgentStatus;
   progress?: number;
+  focused?: boolean;
+  tokenCount?: number;
 };
 
 const statusConfig: Record<
@@ -102,7 +104,10 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
   const icon = roleIcons[data.role] || "🤖";
   const showProgress = data.progress !== undefined && data.progress > 0 && data.progress < 100;
 
-  const glowShadow = config.glow
+  const isFocused = data.focused;
+  const glowShadow = isFocused
+    ? `0 0 40px ${config.color}70, 0 0 80px ${config.color}30, 0 0 4px #ffffff50`
+    : config.glow
     ? `0 0 30px ${config.color}50, 0 0 60px ${config.color}20`
     : config.pulse
     ? `0 0 20px ${config.color}30`
@@ -153,6 +158,13 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
           {data.status}
         </span>
       </div>
+
+      {data.tokenCount !== undefined && data.tokenCount > 0 && (
+        <div className="mt-1.5 flex items-center gap-1 text-[9px] text-slate-500 font-mono">
+          <span>⚡</span>
+          <span>{data.tokenCount.toLocaleString()} tokens</span>
+        </div>
+      )}
 
       {showProgress && (
         <div className="mt-2 h-1 bg-slate-700 rounded-full overflow-hidden">

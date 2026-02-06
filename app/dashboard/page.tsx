@@ -22,8 +22,11 @@ import {
   Command,
   MessageSquare,
   Download,
+  X,
+  Timer,
 } from "lucide-react";
 import { LogoutButton } from "@/components/AuthProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const SAMPLE_MISSIONS = [
   {
@@ -83,11 +86,46 @@ export default function Dashboard() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [runStatus, setRunStatus] = useState<string>("pending");
 
+  const [runStartTime, setRunStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   const graphRef = useRef<SwarmGraphHandle>(null);
-  
+
+  // Run timer
+  useEffect(() => {
+    if (runStatus !== "running" || !runStartTime) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setElapsedTime(Date.now() - runStartTime);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [runStatus, runStartTime]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Escape: cancel run or blur input
+      if (e.key === "Escape") {
+        if (runStatus === "running" && runId) {
+          handleCancel();
+        } else {
+          (document.activeElement as HTMLElement)?.blur();
+        }
+      }
+      // Ctrl+K or Cmd+K: focus input
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [runStatus, runId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!runId) return;
-    
+
     const pollMetrics = async () => {
       try {
         const res = await fetch("/api/metrics");
@@ -188,6 +226,8 @@ export default function Dashboard() {
     seenAgentIdsRef.current.clear();
     setMetrics({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
     setRunStatus("running");
+    setRunStartTime(Date.now());
+    setElapsedTime(0);
     
     await fetch("/api/metrics", { method: "DELETE" }).catch(() => {});
 
@@ -219,6 +259,8 @@ export default function Dashboard() {
     setAgents([]);
     setPrompt("");
     setRunStatus("pending");
+    setRunStartTime(null);
+    setElapsedTime(0);
     seenEventIds.current.clear();
     seenAgentIdsRef.current.clear();
   }, []);
@@ -229,8 +271,20 @@ export default function Dashboard() {
     }
   };
 
-  const handleAgentClick = (_agentId: string) => {
-    // TODO: pan graph to focused agent
+  const handleAgentClick = (agentId: string) => {
+    graphRef.current?.focusAgent(agentId);
+    setActiveTab("Generative");
+  };
+
+  const handleCancel = async () => {
+    if (!runId) return;
+    try {
+      await fetch(`/api/run/${runId}`, { method: "DELETE" });
+      setRunStatus("failed");
+      addMessage("system", "Run cancelled by user");
+    } catch {
+      addMessage("error", "Failed to cancel run");
+    }
   };
 
   return (
@@ -266,8 +320,18 @@ export default function Dashboard() {
             {connected ? "LIVE" : "OFFLINE"}
           </Badge>
           {runId && (
-            <div className="font-mono text-xs text-slate-500">
-              RUN: {runId.slice(0, 8)}
+            <div className="flex items-center gap-3">
+              {runStatus === "running" && elapsedTime > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20">
+                  <Timer className="w-3 h-3 text-blue-400 animate-pulse" />
+                  <span className="text-xs font-mono text-blue-300">
+                    {Math.floor(elapsedTime / 1000)}s
+                  </span>
+                </div>
+              )}
+              <div className="font-mono text-xs text-slate-500">
+                RUN: {runId.slice(0, 8)}
+              </div>
             </div>
           )}
           <LogoutButton />
@@ -278,10 +342,11 @@ export default function Dashboard() {
         <div className="flex-1 relative">
           <Command className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
+            ref={inputRef}
             type="text"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe the mission for the swarm..."
+            placeholder="Describe the mission for the swarm... (⌘K to focus)"
             className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all placeholder:text-slate-600"
             disabled={isLoading}
           />
@@ -294,6 +359,11 @@ export default function Dashboard() {
             </Button>
           ) : (
             <>
+              {runStatus === "running" && (
+                <Button type="button" variant="destructive" onClick={handleCancel} className="gap-2">
+                  <X className="w-4 h-4" /> Cancel
+                </Button>
+              )}
               {(runStatus === "completed" || runStatus === "failed") && (
                 <Button type="button" variant="secondary" onClick={handleExport} className="gap-2">
                   <Download className="w-4 h-4" /> Export
@@ -341,9 +411,11 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-          <div className="flex-[3]">
-            <SwarmGraph ref={graphRef} className="bg-slate-950" />
-          </div>
+          <ErrorBoundary fallbackTitle="Graph rendering error">
+            <div className="flex-[3]">
+              <SwarmGraph ref={graphRef} className="bg-slate-950" />
+            </div>
+          </ErrorBoundary>
           <div className="flex-[2] border-t border-white/5 min-h-0">
             <AgentStatusPanel agents={agents} onAgentClick={handleAgentClick} />
           </div>
@@ -355,14 +427,16 @@ export default function Dashboard() {
             <Tabs options={["Generative", "Console"]} active={activeTab} onChange={setActiveTab} />
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-            <TamboEventBridge events={events} />
-            {activeTab === "Generative" ? (
-              <TamboThread />
-            ) : (
-              <TamboConsole events={events} />
-            )}
-          </div>
+          <ErrorBoundary fallbackTitle="Generative output error">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+              <TamboEventBridge events={events} />
+              {activeTab === "Generative" ? (
+                <TamboThread />
+              ) : (
+                <TamboConsole events={events} />
+              )}
+            </div>
+          </ErrorBoundary>
         </div>
 
         <div className="col-span-12 md:col-span-6 lg:col-span-3 flex flex-col bg-slate-950">
