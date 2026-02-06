@@ -54,6 +54,9 @@ next-env.d.ts
 .sisyphus/
 .opencode/
 .claude/
+.agent/
+.agents/
+.cursor/
 
 # IDE
 .idea/
@@ -65,4 +68,5 @@ next-env.d.ts
 AGENTS.md
 UI_IMPROVEMENT_SPEC.md
 improve.md
+audit_context.md
 gemini/
