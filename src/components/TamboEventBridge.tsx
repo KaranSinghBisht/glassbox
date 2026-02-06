@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useTamboThreadInput } from "@tambo-ai/react";
 import { SwarmEvent } from "@/lib/schemas";
 
@@ -49,17 +49,42 @@ function formatEventForTambo(event: SwarmEvent): string | null {
       return [
         `Run completed with status: ${payload.status}.`,
         payload.summary ? `Summary: ${payload.summary}` : "",
-        "Render `AuditSummary` with confidence, red flags, and a verification checklist.",
+        payload.status === "success"
+          ? "Render `MetricsSummary` with estimated token/cost data from context. Then render `AuditSummary` with confidence, red flags, and a verification checklist."
+          : "Render `ErrorCard` with details from context.",
       ]
         .filter(Boolean)
         .join(" ");
+    }
+    case "AGENT_SPAWNED": {
+      const payload = event.payload as {
+        name: string;
+        role: string;
+        parentId?: string;
+      };
+      return [
+        `Agent spawned: "${payload.name}" (${payload.role}).`,
+        "Render `RunProgressCard` showing the current run progress with this new agent included.",
+      ].join(" ");
+    }
+    case "AGENT_PROGRESS": {
+      const payload = event.payload as {
+        progress: string;
+        percentage?: number;
+        step?: string;
+      };
+      return `Agent progress: ${payload.progress}${payload.percentage !== undefined ? ` (${payload.percentage}%)` : ""}. Update the existing \`RunProgressCard\` if present.`;
     }
     case "AGENT_MESSAGE": {
       const payload = event.payload as { summary: string };
       return `Agent message: "${payload.summary}". Render \`AgentMessageCard\`.`;
     }
     case "ERROR": {
-      const payload = event.payload as { code?: string; message: string; stack?: string };
+      const payload = event.payload as {
+        code?: string;
+        message: string;
+        stack?: string;
+      };
       return [
         `Error: ${payload.code ? `${payload.code}: ` : ""}${payload.message}`,
         "Render `ErrorCard` with details from context.",
@@ -70,56 +95,103 @@ function formatEventForTambo(event: SwarmEvent): string | null {
   }
 }
 
+const BATCH_DEBOUNCE_MS = 500;
+
 export default function TamboEventBridge({ events }: TamboEventBridgeProps) {
   const processedEventIdsRef = useRef<Set<string>>(new Set());
   const prevEventsLengthRef = useRef<number>(0);
+  const pendingEventsRef = useRef<SwarmEvent[]>([]);
+  const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { setValue, submit } = useTamboThreadInput();
 
   useEffect(() => {
-    // When a new run starts we clear events in the dashboard. Clear bridge state too.
     if (events.length === 0 && prevEventsLengthRef.current > 0) {
       processedEventIdsRef.current.clear();
+      pendingEventsRef.current = [];
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+        batchTimerRef.current = null;
+      }
     }
     prevEventsLengthRef.current = events.length;
   }, [events.length]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const processBatch = useCallback(async () => {
+    const batch = pendingEventsRef.current.splice(0);
+    if (batch.length === 0) return;
 
-    const sendEventMessages = async () => {
-      for (const event of events) {
-        if (cancelled) return;
-
-        const eventId = event.id || `${event.type}-${event.ts}-${event.agentId || ""}`;
-        if (processedEventIdsRef.current.has(eventId)) continue;
-
-        const message = formatEventForTambo(event);
-        // Mark processed even if we don't send, to avoid re-checking forever.
-        processedEventIdsRef.current.add(eventId);
-
-        if (!message) continue;
-
-        setValue(message);
-        try {
-          await submit({
-            additionalContext: {
-              swarmEvent: event,
-            },
-          });
-        } catch (error) {
-          // Avoid infinite retries; surface in console for debugging.
-          console.error("Failed to send event to Tambo:", error);
-        }
-      }
+    // Combine batch messages
+    const messages: string[] = [];
+    const combinedContext: Record<string, unknown> = {
+      batchSize: batch.length,
+      eventTypes: [...new Set(batch.map((e) => e.type))],
     };
 
-    sendEventMessages();
+    for (const event of batch) {
+      const msg = formatEventForTambo(event);
+      if (msg) {
+        messages.push(msg);
+        // Add structured event data
+        const key = `event_${event.type}_${event.agentId || "system"}`;
+        combinedContext[key] = event;
+      }
+    }
+
+    if (messages.length === 0) return;
+
+    const combined = messages.join("\n\n");
+    setValue(combined);
+
+    try {
+      await submit({
+        additionalContext: {
+          swarmEvents: batch,
+          ...combinedContext,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to send batched events to Tambo:", error);
+    }
+  }, [setValue, submit]);
+
+  useEffect(() => {
+    for (const event of events) {
+      const eventId =
+        event.id || `${event.type}-${event.ts}-${event.agentId || ""}`;
+      if (processedEventIdsRef.current.has(eventId)) continue;
+      processedEventIdsRef.current.add(eventId);
+
+      const message = formatEventForTambo(event);
+      if (!message) continue;
+
+      pendingEventsRef.current.push(event);
+    }
+
+    // Debounce: wait for more events before sending batch
+    if (pendingEventsRef.current.length > 0) {
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+      }
+
+      // Send high-priority events (APPROVAL_REQUIRED, ERROR) immediately
+      const hasUrgent = pendingEventsRef.current.some(
+        (e) => e.type === "APPROVAL_REQUIRED" || e.type === "ERROR"
+      );
+
+      if (hasUrgent) {
+        processBatch();
+      } else {
+        batchTimerRef.current = setTimeout(processBatch, BATCH_DEBOUNCE_MS);
+      }
+    }
 
     return () => {
-      cancelled = true;
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+        batchTimerRef.current = null;
+      }
     };
-  }, [events, setValue, submit]);
+  }, [events, processBatch]);
 
   return null;
 }
-

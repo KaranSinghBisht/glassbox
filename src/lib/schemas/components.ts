@@ -94,6 +94,83 @@ export const ErrorCardSchema = z.object({
   stack: z.string().optional().describe("Stack trace if available"),
 });
 
+export const RunProgressCardSchema = z.object({
+  runId: z.string().describe("ID of the current run"),
+  status: z
+    .enum(["pending", "running", "completed", "failed"])
+    .describe("Current run status"),
+  agents: z
+    .array(
+      z.object({
+        id: z.string().describe("Agent ID"),
+        name: z.string().describe("Agent display name"),
+        role: z.string().describe("Agent role"),
+        status: z.string().describe("Current agent status"),
+      })
+    )
+    .optional()
+    .describe("List of agents and their statuses"),
+  tokenCount: z.number().optional().describe("Total tokens used so far"),
+  elapsedMs: z.number().optional().describe("Elapsed time in milliseconds"),
+  progress: z
+    .number()
+    .min(0)
+    .max(100)
+    .optional()
+    .describe("Overall progress percentage"),
+});
+
+export const AgentInspectorSchema = z.object({
+  agentId: z.string().describe("ID of the agent to inspect"),
+  name: z.string().describe("Agent display name"),
+  role: z.string().describe("Agent role"),
+  status: z.string().describe("Current agent status"),
+  outputs: z
+    .array(z.string())
+    .optional()
+    .describe("List of outputs/artifacts produced"),
+  tokenCount: z.number().optional().describe("Tokens consumed by this agent"),
+  elapsedMs: z.number().optional().describe("Time spent by this agent in ms"),
+  lastMessage: z.string().optional().describe("Last message from this agent"),
+});
+
+export const TimelineViewSchema = z.object({
+  events: z
+    .array(
+      z.object({
+        type: z.string().describe("Event type"),
+        agentId: z.string().optional().describe("Agent that emitted this event"),
+        message: z.string().describe("Human-readable summary"),
+        timestamp: z.number().describe("Unix timestamp in ms"),
+      })
+    )
+    .describe("Chronological list of events"),
+  filterTypes: z
+    .array(z.string())
+    .optional()
+    .describe("Event types to show (empty = all)"),
+});
+
+export const MetricsSummarySchema = z.object({
+  totalTokens: z.number().describe("Total tokens used"),
+  inputTokens: z.number().describe("Input tokens used"),
+  outputTokens: z.number().describe("Output tokens used"),
+  llmCalls: z.number().describe("Number of LLM calls"),
+  estimatedCost: z.number().describe("Estimated cost in USD"),
+  agentBreakdown: z
+    .array(
+      z.object({
+        name: z.string().describe("Agent name"),
+        role: z.string().describe("Agent role"),
+        tokens: z.number().describe("Tokens used by this agent"),
+        elapsedMs: z.number().describe("Time spent in ms"),
+      })
+    )
+    .optional()
+    .describe("Per-agent token and time breakdown"),
+  totalElapsedMs: z.number().optional().describe("Total run time in ms"),
+});
+
 export type TaskPlanCard = z.infer<typeof TaskPlanCardSchema>;
 export type ActionProposal = z.infer<typeof ActionProposalSchema>;
 export type AuditSummary = z.infer<typeof AuditSummarySchema>;
@@ -101,3 +178,7 @@ export type ArtifactViewer = z.infer<typeof ArtifactViewerSchema>;
 export type DiffBeforeAction = z.infer<typeof DiffBeforeActionSchema>;
 export type AgentMessageCard = z.infer<typeof AgentMessageCardSchema>;
 export type ErrorCard = z.infer<typeof ErrorCardSchema>;
+export type RunProgressCard = z.infer<typeof RunProgressCardSchema>;
+export type AgentInspector = z.infer<typeof AgentInspectorSchema>;
+export type TimelineView = z.infer<typeof TimelineViewSchema>;
+export type MetricsSummary = z.infer<typeof MetricsSummarySchema>;
