@@ -86,6 +86,16 @@ describe("Proxy Auth", () => {
   });
 });
 
+describe("Auth Middleware Wiring", () => {
+  it("uses proxy.ts (and does not include middleware.ts)", async () => {
+    const fs = await import("fs");
+
+    // Next.js 16 uses `proxy.ts` for auth/routing middleware. Having both breaks builds.
+    expect(fs.existsSync("./proxy.ts")).toBe(true);
+    expect(fs.existsSync("./middleware.ts")).toBe(false);
+  });
+});
+
 describe("Event Deduplication", () => {
   it("SwarmEventBridge has seenEventIds for deduplication", async () => {
     const sourceCode = await import("fs").then(fs => 
