@@ -60,11 +60,8 @@ Respond with JSON matching this structure:
       });
 
       this.emitProgress(context.runId, "Plan generated, preparing delegations...", { step: "prepare", percentage: 70 });
-      console.log('[Orchestrator] Plan received:', JSON.stringify(plan, null, 2));
 
-      // Validate and fallback if no delegations
       if (!plan.delegations || plan.delegations.length === 0) {
-        console.warn('[Orchestrator] No delegations in plan, creating default delegations');
         plan.delegations = [
           { agent: 'researcher', task: `Research and gather context for: ${context.task}`, priority: 1 },
           { agent: 'builder', task: `Create deliverables for: ${context.task}`, priority: 2 },
@@ -93,7 +90,6 @@ Respond with JSON matching this structure:
         ],
       };
     } catch (error) {
-      console.error('[Orchestrator] Failed to create plan:', error);
       return {
         status: "error",
         message: `Failed to create plan: ${error}`,

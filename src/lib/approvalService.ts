@@ -2,7 +2,8 @@ import { db, actionProposals, approvals } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { eventBus } from "./eventBus";
 
-const POLL_INTERVAL_MS = 1000;
+const INITIAL_POLL_MS = 500;
+const MAX_POLL_MS = 10_000;
 const APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
 export async function approveProposal(proposalId: string, reason?: string) {
@@ -118,6 +119,7 @@ export async function waitForApproval(
   proposalId: string
 ): Promise<{ approved: boolean; reason?: string }> {
   const startTime = Date.now();
+  let pollInterval = INITIAL_POLL_MS;
 
   while (Date.now() - startTime < APPROVAL_TIMEOUT_MS) {
     const proposal = await db.query.actionProposals.findFirst({
@@ -139,7 +141,8 @@ export async function waitForApproval(
       return { approved: false, reason: approval?.reason ?? undefined };
     }
 
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await new Promise((r) => setTimeout(r, pollInterval));
+    pollInterval = Math.min(pollInterval * 1.5, MAX_POLL_MS);
   }
 
   throw new Error(`Approval timeout for proposal ${proposalId} after 24 hours`);

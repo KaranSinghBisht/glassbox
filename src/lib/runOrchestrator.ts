@@ -146,8 +146,8 @@ export class RunOrchestrator {
 export async function startRun(prompt: string): Promise<string> {
   const orchestrator = await RunOrchestrator.create(prompt);
 
-  orchestrator.execute().catch((error) => {
-    console.error("Run failed:", error);
+  orchestrator.execute().catch(() => {
+    // Error already emitted via eventBus as ERROR + RUN_COMPLETED events
   });
 
   return orchestrator.getRunId();

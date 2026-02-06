@@ -113,7 +113,6 @@ export class AgentLLMClient {
   private switchToNextModel(): boolean {
     if (this.currentModelIndex < MODELS.length - 1) {
       this.currentModelIndex++;
-      console.log(`Switching to model: ${this.getCurrentModel()}`);
       return true;
     }
     return false;
@@ -157,11 +156,9 @@ export class AgentLLMClient {
       } catch (error: unknown) {
         lastError = error instanceof Error ? error : new Error(String(error));
         const errorObj = error as { status?: number; message?: string };
-        console.error(`[LLM] Model ${this.getCurrentModel()} failed:`, errorObj?.message || error);
-        
+
         if (errorObj?.status === 429) {
           const delay = Math.pow(2, attempt) * 1000;
-          console.log(`[LLM] Rate limited, waiting ${delay}ms before retry...`);
           await this.sleep(delay);
           
           if (attempt >= 1) {
@@ -171,7 +168,6 @@ export class AgentLLMClient {
         }
         
         if (errorObj?.status === 404 || errorObj?.message?.includes('not found')) {
-          console.log(`[LLM] Model not available, trying next...`);
           if (this.switchToNextModel()) {
             continue;
           }
@@ -222,7 +218,6 @@ Return ONLY the JSON, no markdown or explanation.`;
       if (zodSchema) {
         const validated = zodSchema.safeParse(parsed);
         if (!validated.success) {
-          console.error('[LLM] Zod validation failed:', validated.error.format());
           throw new Error(`LLM response failed schema validation: ${validated.error.message}`);
         }
         return validated.data;
@@ -233,10 +228,6 @@ Return ONLY the JSON, no markdown or explanation.`;
       if (e instanceof Error && e.message.includes('schema validation')) {
         throw e;
       }
-      console.error('[LLM] Failed to parse JSON response:');
-      console.error('[LLM] Raw response:', response);
-      console.error('[LLM] Expected schema:', JSON.stringify(schema, null, 2));
-      console.error('[LLM] Parse error:', e);
       throw new Error(`Invalid JSON response from LLM: ${response.slice(0, 200)}...`);
     }
   }
