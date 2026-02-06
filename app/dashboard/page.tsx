@@ -25,6 +25,29 @@ import {
 } from "lucide-react";
 import { LogoutButton } from "@/components/AuthProvider";
 
+const SAMPLE_MISSIONS = [
+  {
+    emoji: "📝",
+    title: "Blog Post",
+    prompt: "Write a technical blog post about building AI agent swarms with human-in-the-loop oversight",
+  },
+  {
+    emoji: "🚀",
+    title: "Product Launch",
+    prompt: "Create a product launch plan for an AI-powered developer tool, including messaging, timeline, and channels",
+  },
+  {
+    emoji: "🔌",
+    title: "API Design",
+    prompt: "Design a RESTful API for a real-time collaboration platform with WebSocket events and rate limiting",
+  },
+  {
+    emoji: "🔒",
+    title: "Security Audit",
+    prompt: "Perform a security audit of a Node.js Express application covering OWASP Top 10 vulnerabilities",
+  },
+];
+
 interface Message {
   id: string;
   type: string;
@@ -206,8 +229,8 @@ export default function Dashboard() {
     }
   };
 
-  const handleAgentClick = (agentId: string) => {
-    console.log("Focus agent:", agentId);
+  const handleAgentClick = (_agentId: string) => {
+    // TODO: pan graph to focused agent
   };
 
   return (
@@ -284,6 +307,25 @@ export default function Dashboard() {
         </div>
       </form>
 
+      {!runId && (
+        <div className="border-b border-white/5 bg-slate-900/10 px-6 py-4 shrink-0 animate-fade-in">
+          <p className="text-xs text-slate-500 mb-3 font-medium uppercase tracking-wider">Quick Start</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {SAMPLE_MISSIONS.map((mission) => (
+              <button
+                key={mission.title}
+                onClick={() => setPrompt(mission.prompt)}
+                className="group text-left p-3 rounded-xl bg-slate-900/50 border border-white/5 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all"
+              >
+                <span className="text-2xl block mb-1">{mission.emoji}</span>
+                <span className="text-sm font-medium text-slate-300 group-hover:text-blue-300 transition-colors">{mission.title}</span>
+                <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{mission.prompt.slice(0, 60)}...</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 grid grid-cols-12 overflow-hidden">
         <div className="col-span-12 lg:col-span-6 border-r border-white/5 relative flex flex-col">
           <div className="absolute top-4 left-4 z-10">
@@ -291,6 +333,14 @@ export default function Dashboard() {
               <Activity className="w-4 h-4 text-blue-400" /> Real-time Mesh
             </h2>
           </div>
+          {!runId && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-fade-in">
+              <div className="bg-slate-950/60 backdrop-blur-sm rounded-2xl px-8 py-6 border border-white/5 text-center">
+                <Zap className="w-8 h-8 mx-auto mb-3 text-slate-600" />
+                <p className="text-sm text-slate-400 font-medium">Launch a mission to see agents come alive</p>
+              </div>
+            </div>
+          )}
           <div className="flex-[3]">
             <SwarmGraph ref={graphRef} className="bg-slate-950" />
           </div>

@@ -47,6 +47,7 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
   const connectRef = useRef<() => void>(() => {});
   const seenEventIdsRef = useRef<Set<string>>(new Set());
   const lastRunIdRef = useRef<string | undefined>(undefined);
+  const parentMapRef = useRef<Map<string, string>>(new Map());
 
   const handleEvent = useCallback(
     (event: SwarmEvent) => {
@@ -61,24 +62,27 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
       switch (event.type) {
         case "AGENT_SPAWNED":
           if (event.agentId && event.payload) {
+            if (event.payload.parentId) {
+              parentMapRef.current.set(event.agentId, event.payload.parentId);
+            }
             onAgentSpawned?.(
               event.agentId,
               event.payload.name,
               event.payload.role,
               event.payload.parentId
             );
-            if (event.payload.parentId) {
-              onEdgeActivate?.(event.payload.parentId, event.agentId, true);
-              setTimeout(() => {
-                onEdgeActivate?.(event.payload.parentId!, event.agentId!, false);
-              }, 2000);
-            }
           }
           break;
 
         case "AGENT_STATUS":
           if (event.agentId && event.payload) {
             onAgentStatusChange?.(event.agentId, event.payload.status);
+            const parentId = parentMapRef.current.get(event.agentId);
+            if (parentId) {
+              const activeStatuses = new Set(["thinking", "acting", "waiting"]);
+              const active = activeStatuses.has(event.payload.status);
+              onEdgeActivate?.(parentId, event.agentId, active);
+            }
           }
           break;
 
@@ -138,6 +142,7 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
 
     if (lastRunIdRef.current !== runId) {
       seenEventIdsRef.current.clear();
+      parentMapRef.current.clear();
       lastRunIdRef.current = runId;
     }
 

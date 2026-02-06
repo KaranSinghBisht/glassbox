@@ -182,18 +182,76 @@ export default function LandingPage() {
                   <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
                   <div className="w-3 h-3 rounded-full bg-green-500/20" />
                 </div>
-                <div className="p-8 space-y-4 opacity-70">
-                  <div className="h-4 w-3/4 bg-slate-800 rounded animate-pulse" />
-                  <div className="h-4 w-1/2 bg-slate-800 rounded animate-pulse" />
-                  <div className="h-32 w-full bg-slate-900 border border-slate-800 rounded-lg p-4 mt-4">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 rounded-full bg-blue-500/20" />
-                      <div className="h-3 w-24 bg-slate-800 rounded" />
+                <div className="p-6 relative" style={{ height: 220 }}>
+                  {/* SVG edges with animated pulses */}
+                  <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                    {/* Orchestrator → Research */}
+                    <line x1="50%" y1="38" x2="18%" y2="120" stroke="#334155" strokeWidth="1.5" />
+                    <line x1="50%" y1="38" x2="18%" y2="120" stroke="#3b82f6" strokeWidth="1.5" opacity="0">
+                      <animate attributeName="opacity" values="0;0.8;0" dur="2s" repeatCount="indefinite" begin="0s" />
+                    </line>
+                    <circle r="3" fill="#60a5fa">
+                      <animateMotion dur="2s" repeatCount="indefinite" begin="0s" path="M 150,38 L 54,120" />
+                    </circle>
+
+                    {/* Orchestrator → Code */}
+                    <line x1="50%" y1="38" x2="50%" y2="120" stroke="#334155" strokeWidth="1.5" />
+                    <line x1="50%" y1="38" x2="50%" y2="120" stroke="#8b5cf6" strokeWidth="1.5" opacity="0">
+                      <animate attributeName="opacity" values="0;0.8;0" dur="2.4s" repeatCount="indefinite" begin="0.4s" />
+                    </line>
+                    <circle r="3" fill="#a78bfa">
+                      <animateMotion dur="2.4s" repeatCount="indefinite" begin="0.4s" path="M 150,38 L 150,120" />
+                    </circle>
+
+                    {/* Orchestrator → Audit */}
+                    <line x1="50%" y1="38" x2="82%" y2="120" stroke="#334155" strokeWidth="1.5" />
+                    <line x1="50%" y1="38" x2="82%" y2="120" stroke="#10b981" strokeWidth="1.5" opacity="0">
+                      <animate attributeName="opacity" values="0;0.8;0" dur="2.8s" repeatCount="indefinite" begin="0.8s" />
+                    </line>
+                    <circle r="3" fill="#34d399">
+                      <animateMotion dur="2.8s" repeatCount="indefinite" begin="0.8s" path="M 150,38 L 246,120" />
+                    </circle>
+                  </svg>
+
+                  {/* Orchestrator node */}
+                  <div className="absolute left-1/2 -translate-x-1/2 top-3 w-24 text-center">
+                    <div className="relative mx-auto w-10 h-10 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center animate-status-pulse">
+                      <Box className="w-5 h-5 text-blue-400" />
+                      <div className="absolute inset-0 rounded-lg animate-pulse-ring" style={{ boxShadow: "0 0 0 0 rgba(59,130,246,0.3)" }} />
                     </div>
-                    <div className="space-y-2">
-                      <div className="h-2 w-full bg-slate-800 rounded" />
-                      <div className="h-2 w-5/6 bg-slate-800 rounded" />
+                    <span className="text-[10px] text-blue-300 mt-1 block font-medium">Orchestrator</span>
+                  </div>
+
+                  {/* Research node */}
+                  <div className="absolute left-[18%] -translate-x-1/2 top-[100px] w-20 text-center">
+                    <div className="mx-auto w-9 h-9 rounded-lg bg-blue-500/10 border border-slate-700 flex items-center justify-center">
+                      <Zap className="w-4 h-4 text-blue-400" />
                     </div>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Research</span>
+                  </div>
+
+                  {/* Code node */}
+                  <div className="absolute left-1/2 -translate-x-1/2 top-[100px] w-20 text-center">
+                    <div className="mx-auto w-9 h-9 rounded-lg bg-violet-500/10 border border-slate-700 flex items-center justify-center animate-status-pulse">
+                      <Layout className="w-4 h-4 text-violet-400" />
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Code</span>
+                  </div>
+
+                  {/* Audit node */}
+                  <div className="absolute right-[18%] translate-x-1/2 top-[100px] w-20 text-center">
+                    <div className="mx-auto w-9 h-9 rounded-lg bg-emerald-500/10 border border-slate-700 flex items-center justify-center">
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Audit</span>
+                  </div>
+
+                  {/* Status legend */}
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-4 text-[9px] text-slate-500">
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />Thinking</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-violet-500" />Acting</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Done</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Waiting</span>
                   </div>
                 </div>
               </div>
