@@ -50,9 +50,10 @@ export default function RunProgressCard({ data }: RunProgressCardProps) {
     );
   }
 
-  const StatusIcon = statusIcons[data?.status] || Clock;
-  const statusColor = statusColors[data?.status] || "text-slate-400";
-  const isRunning = data?.status === "running";
+  const normalizedStatus = data?.status?.toLowerCase() || "pending";
+  const StatusIcon = statusIcons[normalizedStatus] || Clock;
+  const statusColor = statusColors[normalizedStatus] || "text-slate-400";
+  const isRunning = normalizedStatus === "running";
 
   return (
     <Card className="p-4 animate-fade-in">
@@ -84,9 +85,9 @@ export default function RunProgressCard({ data }: RunProgressCardProps) {
           value={data.progress}
           className="mb-4 h-1.5"
           colorClass={
-            data.status === "completed"
+            normalizedStatus === "completed"
               ? "bg-emerald-500"
-              : data.status === "failed"
+              : normalizedStatus === "failed"
               ? "bg-red-500"
               : "bg-blue-500"
           }
@@ -95,55 +96,59 @@ export default function RunProgressCard({ data }: RunProgressCardProps) {
 
       {data?.agents && data.agents.length > 0 && (
         <div className="space-y-2">
-          {data.agents.map((agent) => (
-            <div
-              key={agent.id}
-              className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-white/5"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm">
-                  {agent.role === "orchestrator"
-                    ? "🎯"
-                    : agent.role === "researcher"
-                    ? "🔍"
-                    : agent.role === "builder"
-                    ? "🔨"
-                    : agent.role === "auditor"
-                    ? "🛡️"
-                    : "🤖"}
-                </span>
-                <span className="text-sm text-slate-300">{agent.name}</span>
-              </div>
-              <Badge
-                variant={
-                  agent.status === "done"
-                    ? "success"
-                    : agent.status === "error"
-                    ? "danger"
-                    : agent.status === "waiting"
-                    ? "warning"
-                    : "default"
-                }
-                className="text-[10px]"
+          {data.agents.map((agent) => {
+            const agentRole = agent.role?.toLowerCase() || "";
+            const agentStatus = agent.status?.toLowerCase() || "idle";
+            return (
+              <div
+                key={agent.id}
+                className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-white/5"
               >
-                {agent.status.toUpperCase()}
-              </Badge>
-            </div>
-          ))}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">
+                    {agentRole === "orchestrator"
+                      ? "🎯"
+                      : agentRole === "researcher"
+                      ? "🔍"
+                      : agentRole === "builder"
+                      ? "🔨"
+                      : agentRole === "auditor"
+                      ? "🛡️"
+                      : "🤖"}
+                  </span>
+                  <span className="text-sm text-slate-300">{agent.name}</span>
+                </div>
+                <Badge
+                  variant={
+                    agentStatus === "done"
+                      ? "success"
+                      : agentStatus === "error"
+                      ? "danger"
+                      : agentStatus === "waiting"
+                      ? "warning"
+                      : "default"
+                  }
+                  className="text-[10px]"
+                >
+                  {agentStatus.toUpperCase()}
+                </Badge>
+              </div>
+            );
+          })}
         </div>
       )}
 
       <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
         <Badge
           variant={
-            data?.status === "completed"
+            normalizedStatus === "completed"
               ? "success"
-              : data?.status === "failed"
+              : normalizedStatus === "failed"
               ? "danger"
               : "default"
           }
         >
-          {(data?.status || "pending").toUpperCase()}
+          {normalizedStatus.toUpperCase()}
         </Badge>
         {data?.runId && (
           <span className="text-[10px] font-mono text-slate-600">

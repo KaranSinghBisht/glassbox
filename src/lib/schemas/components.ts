@@ -26,8 +26,8 @@ export const ActionProposalSchema = z.object({
     .enum(["write_artifact", "propose_patch", "apply_patch", "export_report", "execute_code"])
     .describe("Type of action being proposed"),
   title: z.string().describe("Short title describing the action"),
-  description: z.string().optional().describe("Detailed description of the action"),
-  rationale: z.string().describe("Why this action is recommended"),
+  description: z.string().optional().default("").describe("Detailed description of the action"),
+  rationale: z.string().optional().default("").describe("Why this action is recommended"),
   risk: z
     .enum(["low", "medium", "high", "critical"])
     .describe("Risk level of this action"),

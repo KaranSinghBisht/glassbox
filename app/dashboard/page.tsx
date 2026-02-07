@@ -4,116 +4,116 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
-import TamboConsole from "@/components/TamboConsole";
-import TamboEventBridge from "@/components/TamboEventBridge";
-import TamboThread from "@/components/TamboThread";
-import LLMMetrics from "@/components/ui/LLMMetrics";
-import AgentStatusPanel from "@/components/AgentStatusPanel";
 import { SwarmEvent } from "@/lib/schemas";
-import { Button, Badge, Tabs } from "@/components/ui/primitives";
-import { cn } from "@/components/ui/primitives";
+import { Button, Badge, cn } from "@/components/ui/primitives";
 import {
-  Play,
   RotateCcw,
   Box,
   Zap,
-  Settings,
-  Activity,
-  Command,
-  MessageSquare,
-  Download,
-  X,
+  Terminal,
+  Cpu,
+  Check,
+  ChevronRight,
+  ChevronDown,
+  AlertTriangle,
+  FileText,
   Timer,
+  ArrowRight,
+  Loader2,
+  Send,
 } from "lucide-react";
 import { LogoutButton } from "@/components/AuthProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const SAMPLE_MISSIONS = [
-  {
-    emoji: "📝",
-    title: "Blog Post",
-    prompt: "Write a technical blog post about building AI agent swarms with human-in-the-loop oversight",
-  },
-  {
-    emoji: "🚀",
-    title: "Product Launch",
-    prompt: "Create a product launch plan for an AI-powered developer tool, including messaging, timeline, and channels",
-  },
-  {
-    emoji: "🔌",
-    title: "API Design",
-    prompt: "Design a RESTful API for a real-time collaboration platform with WebSocket events and rate limiting",
-  },
-  {
-    emoji: "🔒",
-    title: "Security Audit",
-    prompt: "Perform a security audit of a Node.js Express application covering OWASP Top 10 vulnerabilities",
-  },
+  { emoji: "📝", title: "Blog Post", prompt: "Write a technical blog post about building AI agent swarms with human-in-the-loop oversight" },
+  { emoji: "🚀", title: "Product Launch", prompt: "Create a product launch plan for an AI-powered developer tool, including messaging, timeline, and channels" },
+  { emoji: "🔌", title: "API Design", prompt: "Design a RESTful API for a real-time collaboration platform with WebSocket events and rate limiting" },
+  { emoji: "🔒", title: "Security Audit", prompt: "Perform a security audit of a Node.js Express application covering OWASP Top 10 vulnerabilities" },
 ];
-
-interface Message {
-  id: string;
-  type: string;
-  content: string;
-  timestamp: Date;
-}
-
-interface Metrics {
-  inputTokens: number;
-  outputTokens: number;
-  calls: number;
-  estimatedCost: number;
-}
 
 interface AgentInfo {
   id: string;
   name: string;
   role: string;
   status: string;
-  progress?: number;
-  lastMessage?: string;
+}
+
+interface Artifact {
+  id: string;
+  name: string;
+  content: string;
+  contentType?: string;
+}
+
+function ArtifactBlock({ name, content, contentType }: { name: string; content: string; contentType?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isCode = contentType?.includes("json") || contentType?.includes("javascript") || contentType?.includes("typescript");
+  const lines = content.split("\n");
+  const previewLines = lines.slice(0, 8);
+
+  return (
+    <div className="my-2 ml-3 max-w-[95%] animate-slide-in">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 transition-colors w-full group"
+      >
+        {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        <FileText className="w-3.5 h-3.5 text-emerald-400" />
+        <span className="font-medium text-emerald-300">{name}</span>
+        <span className="text-slate-600 text-[10px]">{lines.length} lines</span>
+      </button>
+      {expanded && (
+        <div className="mt-1 ml-5 bg-slate-900/80 border border-white/5 rounded-lg overflow-hidden">
+          <pre className="p-3 text-xs text-slate-400 overflow-x-auto font-mono leading-relaxed max-h-[300px] overflow-y-auto scrollbar-thin">
+            {content}
+          </pre>
+        </div>
+      )}
+      {!expanded && (
+        <div className="mt-1 ml-5 bg-slate-900/50 border border-white/5 rounded-lg overflow-hidden">
+          <pre className="px-3 py-2 text-[11px] text-slate-600 overflow-hidden font-mono leading-relaxed">
+            {previewLines.join("\n")}{lines.length > 8 ? "\n..." : ""}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Dashboard() {
   const [prompt, setPrompt] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [events, setEvents] = useState<SwarmEvent[]>([]);
   const [connected, setConnected] = useState(false);
-  const [activeTab, setActiveTab] = useState("Generative");
-  const [metrics, setMetrics] = useState<Metrics>({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [runStatus, setRunStatus] = useState<string>("pending");
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
 
   const [runStartTime, setRunStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const graphRef = useRef<SwarmGraphHandle>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
 
-  // Run timer
   useEffect(() => {
-    if (runStatus !== "running" || !runStartTime) {
-      return;
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
-    const timer = setInterval(() => {
-      setElapsedTime(Date.now() - runStartTime);
-    }, 100);
+  }, [events, artifacts]);
+
+  useEffect(() => {
+    if (runStatus !== "running" || !runStartTime) return;
+    const timer = setInterval(() => setElapsedTime(Date.now() - runStartTime), 100);
     return () => clearInterval(timer);
   }, [runStatus, runStartTime]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Escape: cancel run or blur input
       if (e.key === "Escape") {
-        if (runStatus === "running" && runId) {
-          handleCancel();
-        } else {
-          (document.activeElement as HTMLElement)?.blur();
-        }
+        (document.activeElement as HTMLElement)?.blur();
       }
-      // Ctrl+K or Cmd+K: focus input
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         inputRef.current?.focus();
@@ -121,37 +121,27 @@ export default function Dashboard() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [runStatus, runId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => {
-    if (!runId) return;
-
-    const pollMetrics = async () => {
-      try {
-        const res = await fetch("/api/metrics");
-        if (res.ok) {
-          const data = await res.json();
-          setMetrics(data);
-        }
-      } catch {
+  const fetchArtifacts = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/run/${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.artifacts?.length) {
+        setArtifacts(data.artifacts.map((a: { id: string; name: string; content: string; contentType?: string }) => ({
+          id: a.id,
+          name: a.name,
+          content: a.content,
+          contentType: a.contentType,
+        })));
       }
-    };
-    
-    pollMetrics();
-    const interval = setInterval(pollMetrics, 2000);
-    return () => clearInterval(interval);
-  }, [runId]);
-
-  const addMessage = useCallback((type: string, content: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), type, content, timestamp: new Date() },
-    ]);
+    } catch {}
   }, []);
 
   const seenEventIds = useRef<Set<string>>(new Set());
   const seenAgentIdsRef = useRef<Set<string>>(new Set());
-  
+
   const addEvent = useCallback((event: SwarmEvent) => {
     const eventId = event.id || `${event.type}-${event.ts}-${event.agentId || ""}`;
     if (seenEventIds.current.has(eventId)) return;
@@ -159,47 +149,24 @@ export default function Dashboard() {
     setEvents((prev) => [...prev, event]);
   }, []);
 
-  const handleConnected = useCallback(() => {
-    setConnected(true);
-    addMessage("system", "Connected to event stream");
-  }, [addMessage]);
-
-  const handleDisconnected = useCallback(() => {
-    setConnected(false);
-    addMessage("system", "Disconnected from event stream");
-  }, [addMessage]);
+  const handleConnected = useCallback(() => setConnected(true), []);
+  const handleDisconnected = useCallback(() => setConnected(false), []);
 
   const handleAgentSpawned = useCallback((agentId: string, name: string, role: string, parentId?: string) => {
     if (seenAgentIdsRef.current.has(agentId)) return;
     seenAgentIdsRef.current.add(agentId);
-
-    addMessage("agent", `${name} (${role}) spawned`);
     graphRef.current?.addAgent(agentId, role, parentId);
     setAgents((prev) => [...prev, { id: agentId, name, role, status: "idle" }]);
-  }, [addMessage]);
+  }, []);
 
   const handleAgentStatusChange = useCallback((agentId: string, status: string) => {
-    addMessage("status", `Agent ${agentId.slice(0, 8)} → ${status}`);
     graphRef.current?.updateAgentStatus(agentId, status as AgentStatus);
     setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status } : a));
-  }, [addMessage]);
-
-  const handleArtifactCreated = useCallback((artifactId: string, name: string) => {
-    addMessage("artifact", `Created: ${name}`);
-  }, [addMessage]);
-
-  const handleApprovalRequired = useCallback((proposalId: string, actionId: string, title: string) => {
-    addMessage("approval", `Approval needed: ${title}`);
-  }, [addMessage]);
-
-  const handleError = useCallback((error: { message: string }) => {
-    addMessage("error", error.message);
-  }, [addMessage]);
+  }, []);
 
   const handleRunCompleted = useCallback((status: string) => {
     setRunStatus(status === "success" ? "completed" : "failed");
-    addMessage("system", `Run ${status === "success" ? "completed successfully" : "failed"}`);
-  }, [addMessage]);
+  }, []);
 
   useSwarmEvents({
     runId: runId ?? undefined,
@@ -207,29 +174,39 @@ export default function Dashboard() {
     onDisconnected: handleDisconnected,
     onAgentSpawned: handleAgentSpawned,
     onAgentStatusChange: handleAgentStatusChange,
-    onArtifactCreated: handleArtifactCreated,
-    onApprovalRequired: handleApprovalRequired,
-    onError: handleError,
+    onArtifactCreated: useCallback(() => {}, []),
+    onApprovalRequired: useCallback(() => {}, []),
+    onError: useCallback(() => {}, []),
     onRunCompleted: handleRunCompleted,
     onRawEvent: addEvent,
   });
+
+  useEffect(() => {
+    if ((runStatus === "completed" || runStatus === "failed") && runId) {
+      fetchArtifacts(runId);
+      inputRef.current?.focus();
+    }
+  }, [runStatus, runId, fetchArtifacts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || isLoading) return;
 
+    if (runId && (runStatus === "completed" || runStatus === "failed")) {
+      setRunId(null);
+      setArtifacts([]);
+    }
+
     setIsLoading(true);
-    setMessages([]);
     setEvents([]);
     setAgents([]);
     seenEventIds.current.clear();
     seenAgentIdsRef.current.clear();
-    setMetrics({ inputTokens: 0, outputTokens: 0, calls: 0, estimatedCost: 0 });
     setRunStatus("running");
     setRunStartTime(Date.now());
     setElapsedTime(0);
-    
-    await fetch("/api/metrics", { method: "DELETE" }).catch(() => {});
+    setArtifacts([]);
+    graphRef.current?.resetGraph();
 
     try {
       const response = await fetch("/api/run", {
@@ -238,15 +215,21 @@ export default function Dashboard() {
         body: JSON.stringify({ prompt }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to start run");
-      }
+      if (!response.ok) throw new Error("Failed to start run");
 
       const { runId: newRunId } = await response.json();
       setRunId(newRunId);
-      addMessage("system", `Run started: ${newRunId.slice(0, 8)}...`);
+      setPrompt("");
     } catch (error) {
-      addMessage("error", error instanceof Error ? error.message : "Unknown error");
+      const message = error instanceof Error ? error.message : "Unknown error";
+      setEvents(prev => [...prev, {
+        id: crypto.randomUUID(),
+        type: "ERROR",
+        payload: { message },
+        ts: Date.now(),
+        runId: "error",
+      }]);
+      setRunStatus("pending");
     } finally {
       setIsLoading(false);
     }
@@ -254,248 +237,272 @@ export default function Dashboard() {
 
   const handleReset = useCallback(() => {
     setRunId(null);
-    setMessages([]);
     setEvents([]);
     setAgents([]);
     setPrompt("");
     setRunStatus("pending");
     setRunStartTime(null);
     setElapsedTime(0);
+    setArtifacts([]);
     seenEventIds.current.clear();
     seenAgentIdsRef.current.clear();
+    graphRef.current?.resetGraph();
   }, []);
 
-  const handleExport = () => {
-    if (runId) {
-      window.open(`/api/run/${runId}/export`, "_blank");
+  const renderEvent = (event: SwarmEvent) => {
+    const { type, payload, agentId } = event;
+    const agent = agents.find(a => a.id === agentId);
+    const agentName = agent?.name || agentId?.slice(0, 8) || "System";
+
+    switch (type) {
+      case "RUN_CREATED":
+        return (
+          <div className="py-3 mb-3">
+            <div className="flex items-center gap-2 text-slate-200">
+              <Send className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium">{payload.prompt}</span>
+            </div>
+          </div>
+        );
+
+      case "AGENT_SPAWNED":
+        return (
+          <div className="flex items-center gap-2 py-1 text-sm border-l-2 border-blue-500/30 pl-3 my-1 animate-slide-in">
+            <Cpu className="w-3.5 h-3.5 text-blue-400" />
+            <span className="text-slate-400">
+              <span className="text-blue-300 font-medium">{payload.name}</span>
+              <span className="text-slate-600"> joined as {payload.role}</span>
+            </span>
+          </div>
+        );
+
+      case "AGENT_STATUS": {
+        if (payload.status === "idle" || payload.status === "waiting") return null;
+        const statusMap: Record<string, { text: string; color: string }> = {
+          thinking: { text: "thinking...", color: "text-blue-400" },
+          acting: { text: "working...", color: "text-violet-400" },
+          done: { text: "done", color: "text-emerald-400" },
+          error: { text: "error", color: "text-red-400" },
+        };
+        const s = statusMap[payload.status];
+        if (!s) return null;
+        return (
+          <div className="flex items-center gap-2 py-0.5 text-xs pl-4 my-0.5 animate-slide-in font-mono">
+            {payload.status === "thinking" ? (
+              <Loader2 className="w-3 h-3 text-blue-500 animate-spin" />
+            ) : payload.status === "done" ? (
+              <Check className="w-3 h-3 text-emerald-500" />
+            ) : (
+              <ArrowRight className="w-3 h-3 text-slate-600" />
+            )}
+            <span className="text-slate-500">{agentName}</span>
+            <span className={s.color}>{s.text}</span>
+          </div>
+        );
+      }
+
+      case "AGENT_PROGRESS": {
+        const pct = payload.percentage;
+        return (
+          <div className="flex items-center gap-2 py-0.5 text-xs pl-4 my-0.5 animate-slide-in font-mono">
+            <Loader2 className="w-3 h-3 text-blue-500 animate-spin" />
+            <span className="text-slate-500 truncate">{payload.progress}</span>
+            {pct !== undefined && <span className="text-blue-400 shrink-0">{pct}%</span>}
+          </div>
+        );
+      }
+
+      case "AGENT_MESSAGE":
+        return (
+          <div className="ml-3 my-2 animate-slide-in">
+            <div className="text-[10px] text-slate-500 mb-1 font-mono flex items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              {agentName}
+            </div>
+            <div className="bg-slate-900/60 border border-white/5 rounded-lg px-3 py-2 text-sm text-slate-300 leading-relaxed max-w-[95%]">
+              {payload.summary}
+            </div>
+          </div>
+        );
+
+      case "ARTIFACT_CREATED":
+        return (
+          <div className="flex items-center gap-2 py-0.5 text-xs pl-4 my-0.5 animate-slide-in font-mono">
+            <FileText className="w-3 h-3 text-emerald-400" />
+            <span className="text-emerald-300">{payload.name}</span>
+          </div>
+        );
+
+      case "APPROVAL_REQUIRED":
+        return (
+          <div className="flex items-center gap-2 py-0.5 text-xs pl-4 my-0.5 animate-slide-in font-mono">
+            <Check className="w-3 h-3 text-amber-400" />
+            <span className="text-amber-300/70">auto-approved: {payload.title}</span>
+          </div>
+        );
+
+      case "RUN_COMPLETED": {
+        const ok = payload.status === "success";
+        return (
+          <div className={cn(
+            "my-4 p-3 rounded-lg border flex items-center gap-3 animate-slide-in",
+            ok ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"
+          )}>
+            {ok ? <Check className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-red-400" />}
+            <span className={cn("text-sm font-medium", ok ? "text-emerald-400" : "text-red-400")}>
+              {ok ? "Done" : "Failed"} — {payload.summary || (ok ? "all tasks completed" : "encountered an error")}
+            </span>
+          </div>
+        );
+      }
+
+      case "ERROR":
+        return (
+          <div className="ml-3 my-2 flex items-start gap-2 text-red-400 text-xs animate-slide-in bg-red-500/5 p-2 rounded border border-red-500/10">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span className="font-mono">{payload.message}</span>
+          </div>
+        );
+
+      default:
+        return null;
     }
   };
 
-  const handleAgentClick = (agentId: string) => {
-    graphRef.current?.focusAgent(agentId);
-    setActiveTab("Generative");
-  };
-
-  const handleCancel = async () => {
-    if (!runId) return;
-    try {
-      await fetch(`/api/run/${runId}`, { method: "DELETE" });
-      setRunStatus("failed");
-      addMessage("system", "Run cancelled by user");
-    } catch {
-      addMessage("error", "Failed to cancel run");
-    }
-  };
+  const isRunDone = runStatus === "completed" || runStatus === "failed";
 
   return (
     <div className="h-screen w-full flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
-      <header className="h-14 border-b border-white/5 bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-50">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight hover:opacity-80 transition-opacity">
-            <div className="w-6 h-6 bg-gradient-to-tr from-blue-500 to-violet-500 rounded-md flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Box className="w-4 h-4 text-white" />
+      <header className="h-11 border-b border-white/5 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-50">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-2 font-bold text-sm tracking-tight hover:opacity-80 transition-opacity">
+            <div className="w-5 h-5 bg-gradient-to-tr from-blue-600 to-violet-600 rounded flex items-center justify-center">
+              <Box className="w-3 h-3 text-white" />
             </div>
-            GlassBox
+            <span className="text-slate-200">GlassBox</span>
           </Link>
-          <div className="h-4 w-px bg-slate-800" />
-          <span className="text-sm font-medium text-slate-400">Mission Control</span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {runId && metrics.calls > 0 && (
-            <LLMMetrics
-              inputTokens={metrics.inputTokens}
-              outputTokens={metrics.outputTokens}
-              calls={metrics.calls}
-              estimatedCost={metrics.estimatedCost}
-            />
-          )}
-          <Badge variant={connected ? "success" : "default"} className="gap-1.5 transition-all">
-            <div
-              className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                connected ? "bg-emerald-400 animate-pulse" : "bg-slate-500"
-              )}
-            />
-            {connected ? "LIVE" : "OFFLINE"}
+          <Badge variant={connected ? "success" : "default"} className="h-5 gap-1 px-2 text-[10px]">
+            <div className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600")} />
+            {connected ? "LIVE" : "OFF"}
           </Badge>
-          {runId && (
-            <div className="flex items-center gap-3">
-              {runStatus === "running" && elapsedTime > 0 && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20">
-                  <Timer className="w-3 h-3 text-blue-400 animate-pulse" />
-                  <span className="text-xs font-mono text-blue-300">
-                    {Math.floor(elapsedTime / 1000)}s
-                  </span>
-                </div>
-              )}
-              <div className="font-mono text-xs text-slate-500">
-                RUN: {runId.slice(0, 8)}
-              </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {runId && runStatus === "running" && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+              <Timer className="w-3 h-3 text-blue-400 animate-pulse" />
+              <span className="text-xs font-mono text-blue-300 tabular-nums">{(elapsedTime / 1000).toFixed(1)}s</span>
             </div>
           )}
           <LogoutButton />
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="h-16 border-b border-white/5 bg-slate-900/20 flex items-center px-6 gap-4 shrink-0">
-        <div className="flex-1 relative">
-          <Command className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe the mission for the swarm... (⌘K to focus)"
-            className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all placeholder:text-slate-600"
-            disabled={isLoading}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          {!runId ? (
-            <Button type="submit" disabled={isLoading || !prompt.trim()} className="gap-2">
-              <Play className="w-4 h-4 fill-current" />
-              {isLoading ? "Initializing..." : "Initialize Swarm"}
-            </Button>
-          ) : (
-            <>
-              {runStatus === "running" && (
-                <Button type="button" variant="destructive" onClick={handleCancel} className="gap-2">
-                  <X className="w-4 h-4" /> Cancel
-                </Button>
-              )}
-              {(runStatus === "completed" || runStatus === "failed") && (
-                <Button type="button" variant="secondary" onClick={handleExport} className="gap-2">
-                  <Download className="w-4 h-4" /> Export
-                </Button>
-              )}
-              <Button type="button" variant="destructive" onClick={handleReset} className="gap-2">
-                <RotateCcw className="w-4 h-4" /> Reset
-              </Button>
-            </>
-          )}
-        </div>
-      </form>
-
-      {!runId && (
-        <div className="border-b border-white/5 bg-slate-900/10 px-6 py-4 shrink-0 animate-fade-in">
-          <p className="text-xs text-slate-500 mb-3 font-medium uppercase tracking-wider">Quick Start</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {SAMPLE_MISSIONS.map((mission) => (
-              <button
-                key={mission.title}
-                onClick={() => setPrompt(mission.prompt)}
-                className="group text-left p-3 rounded-xl bg-slate-900/50 border border-white/5 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all"
-              >
-                <span className="text-2xl block mb-1">{mission.emoji}</span>
-                <span className="text-sm font-medium text-slate-300 group-hover:text-blue-300 transition-colors">{mission.title}</span>
-                <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{mission.prompt.slice(0, 60)}...</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <main className="flex-1 grid grid-cols-12 overflow-hidden">
-        <div className="col-span-12 lg:col-span-6 border-r border-white/5 relative flex flex-col">
-          <div className="absolute top-4 left-4 z-10">
-            <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-blue-400" /> Real-time Mesh
-            </h2>
-          </div>
-          {!runId && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-fade-in">
-              <div className="bg-slate-950/60 backdrop-blur-sm rounded-2xl px-8 py-6 border border-white/5 text-center">
-                <Zap className="w-8 h-8 mx-auto mb-3 text-slate-600" />
-                <p className="text-sm text-slate-400 font-medium">Launch a mission to see agents come alive</p>
-              </div>
-            </div>
-          )}
-          <ErrorBoundary fallbackTitle="Graph rendering error">
-            <div className="flex-[3]">
-              <SwarmGraph ref={graphRef} className="bg-slate-950" />
-            </div>
-          </ErrorBoundary>
-          <div className="flex-[2] border-t border-white/5 min-h-0">
-            <AgentStatusPanel agents={agents} onAgentClick={handleAgentClick} />
-          </div>
-        </div>
-
-        <div className="col-span-12 md:col-span-6 lg:col-span-3 border-r border-white/5 flex flex-col bg-slate-900/10">
-          <div className="h-12 border-b border-white/5 flex items-center justify-between px-4 bg-slate-950/50">
-            <h2 className="text-sm font-semibold text-slate-300">Generative Output</h2>
-            <Tabs options={["Generative", "Console"]} active={activeTab} onChange={setActiveTab} />
-          </div>
-
-          <ErrorBoundary fallbackTitle="Generative output error">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-              <TamboEventBridge events={events} />
-              {activeTab === "Generative" ? (
-                <TamboThread />
-              ) : (
-                <TamboConsole events={events} />
-              )}
-            </div>
-          </ErrorBoundary>
-        </div>
-
-        <div className="col-span-12 md:col-span-6 lg:col-span-3 flex flex-col bg-slate-950">
-          <div className="h-12 border-b border-white/5 flex items-center justify-between px-4 bg-slate-950/50">
-            <h2 className="text-sm font-semibold text-slate-300">Event Timeline</h2>
-            <Button variant="ghost" size="sm">
-              <Settings className="w-3 h-3" />
-            </Button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {messages.length === 0 ? (
-              <div className="p-8 text-center">
-                <Zap className="w-8 h-8 mx-auto mb-2 text-slate-700" />
-                <p className="text-xs text-slate-600">No events recorded.</p>
+      <main className="flex-1 flex overflow-hidden">
+        <div className="w-full lg:w-[55%] flex flex-col min-h-0">
+          <div ref={feedRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
+            {events.length === 0 && !runId ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-600">
+                <Terminal className="w-10 h-10 mb-3 text-slate-800" />
+                <p className="text-sm font-mono text-slate-600">What would you like the swarm to do?</p>
               </div>
             ) : (
-              <div className="flex flex-col">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className="group flex gap-3 p-3 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer relative"
-                  >
-                    <div className="absolute left-[19px] top-8 bottom-[-20px] w-px bg-white/5" />
-                    <div
-                      className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 border border-slate-800 bg-slate-900",
-                        msg.type === "error" && "text-red-500 border-red-900",
-                        msg.type === "approval" && "text-amber-500 border-amber-900",
-                        msg.type === "artifact" && "text-emerald-500 border-emerald-900",
-                        msg.type === "agent" && "text-blue-500 border-blue-900",
-                        msg.type === "system" && "text-slate-500"
-                      )}
-                    >
-                      <MessageSquare className="w-3 h-3" />
-                    </div>
+              <div className="max-w-2xl mx-auto">
+                {events.map((event) => {
+                  const el = renderEvent(event);
+                  return el ? <div key={event.id || `${event.type}-${event.ts}`}>{el}</div> : null;
+                })}
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <span className="text-xs font-bold text-slate-300 capitalize">
-                          {msg.type}
-                        </span>
-                        <span className="text-[10px] text-slate-600 font-mono">
-                          {msg.timestamp.toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-0.5 leading-snug">
-                        {msg.content}
-                      </p>
-                      {msg.type === "approval" && (
-                        <div className="mt-2">
-                          <Badge variant="warning">Action Required</Badge>
-                        </div>
-                      )}
-                    </div>
+                {runStatus === "running" && (
+                  <div className="flex items-center gap-2 text-slate-500 text-xs pl-4 mt-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="font-mono">agents working...</span>
                   </div>
-                ))}
+                )}
+
+                {isRunDone && artifacts.length > 0 && (
+                  <div className="mt-4 border-t border-white/5 pt-4">
+                    <div className="text-xs font-mono text-slate-500 mb-3 flex items-center gap-2">
+                      <FileText className="w-3.5 h-3.5" />
+                      OUTPUT — {artifacts.length} artifact{artifacts.length > 1 ? "s" : ""}
+                    </div>
+                    {artifacts.map((a) => (
+                      <ArtifactBlock key={a.id} name={a.name} content={a.content} contentType={a.contentType} />
+                    ))}
+                  </div>
+                )}
+
+                {isRunDone && (
+                  <div className="mt-4 mb-2 text-xs text-slate-500 font-mono text-center">
+                    Type a follow-up or <button onClick={handleReset} className="text-blue-400 hover:underline">start fresh</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
+
+          <div className="shrink-0 px-4 py-3 border-t border-white/5 bg-slate-950">
+            {!runId && !isRunDone && (
+              <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-none max-w-2xl mx-auto">
+                {SAMPLE_MISSIONS.map((m) => (
+                  <button
+                    key={m.title}
+                    onClick={() => setPrompt(m.prompt)}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all text-xs text-slate-400 hover:text-blue-300"
+                  >
+                    <span>{m.emoji}</span> {m.title}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="max-w-2xl mx-auto">
+              <div className="relative flex items-center">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder={runStatus === "running" ? "Swarm is working..." : isRunDone ? "Ask a follow-up..." : "What should the swarm do? (⌘K)"}
+                  disabled={runStatus === "running" || isLoading}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 pl-4 pr-20 text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all placeholder:text-slate-600 disabled:opacity-40 text-slate-200"
+                />
+                <div className="absolute right-2">
+                  {runStatus === "running" ? (
+                    <Button type="button" variant="destructive" size="sm" onClick={() => { if (runId) fetch(`/api/run/${runId}`, { method: "DELETE" }).then(() => setRunStatus("failed")).catch(() => {}); }} className="h-7 text-xs px-3">
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button type="submit" disabled={!prompt.trim() || isLoading} size="sm" className="h-7 text-xs px-3 bg-blue-600 hover:bg-blue-500 text-white border-none">
+                      {isRunDone ? "Run again" : "Run"} <span className="ml-1 opacity-50 text-[10px]">↵</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div className="hidden lg:flex lg:w-[45%] border-l border-white/5 flex-col relative">
+          <div className="absolute top-3 left-4 z-10 pointer-events-none">
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+              <Zap className="w-3 h-3" /> Agent Mesh
+            </span>
+          </div>
+
+          <ErrorBoundary fallbackTitle="Graph error">
+            <div className="flex-1">
+              <SwarmGraph ref={graphRef} className="bg-slate-950" />
+            </div>
+          </ErrorBoundary>
+
+          {!runId && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-slate-950/40">
+              <div className="text-center opacity-40">
+                <Cpu className="w-10 h-10 mx-auto mb-2 text-slate-700" />
+                <p className="text-[11px] text-slate-600 font-mono">agents idle</p>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>

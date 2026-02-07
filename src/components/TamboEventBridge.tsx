@@ -140,7 +140,11 @@ export default function TamboEventBridge({ events }: TamboEventBridgeProps) {
     if (messages.length === 0) return;
 
     const combined = messages.join("\n\n");
+    if (!combined.trim()) return;
+
     setValue(combined);
+
+    await new Promise((r) => setTimeout(r, 50));
 
     try {
       await submit({
@@ -149,8 +153,8 @@ export default function TamboEventBridge({ events }: TamboEventBridgeProps) {
           ...combinedContext,
         },
       });
-    } catch (error) {
-      console.error("Failed to send batched events to Tambo:", error);
+    } catch {
+      // Tambo submission failed — Console tab handles rendering directly
     }
   }, [setValue, submit]);
 

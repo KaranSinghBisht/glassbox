@@ -36,6 +36,7 @@ export interface SwarmGraphHandle {
   updateAgentStatus: (agentId: string, status: AgentStatus) => void;
   activateEdge: (sourceId: string, targetId: string, active?: boolean) => void;
   focusAgent: (agentId: string) => void;
+  resetGraph: () => void;
 }
 
 const initialNodes: Node<AgentNodeData>[] = [
@@ -159,12 +160,18 @@ const SwarmGraphInner = forwardRef<SwarmGraphHandle, SwarmGraphProps>(function S
     [reactFlowInstance, setNodes]
   );
 
+  const resetGraph = useCallback(() => {
+    setNodes([...initialNodes]);
+    setEdges([...initialEdges]);
+  }, [setNodes, setEdges]);
+
   useImperativeHandle(ref, () => ({
     addAgent,
     updateAgentStatus,
     activateEdge,
     focusAgent,
-  }), [addAgent, updateAgentStatus, activateEdge, focusAgent]);
+    resetGraph,
+  }), [addAgent, updateAgentStatus, activateEdge, focusAgent, resetGraph]);
 
   return (
     <div

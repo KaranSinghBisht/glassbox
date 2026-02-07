@@ -44,7 +44,9 @@ export default function AgentInspector({ data }: AgentInspectorProps) {
     );
   }
 
-  const icon = roleIcons[data?.role] || "🤖";
+  const normalizedRole = data?.role?.toLowerCase() || "";
+  const normalizedStatus = data?.status?.toLowerCase() || "";
+  const icon = roleIcons[normalizedRole] || "🤖";
 
   return (
     <Card className="p-0 overflow-hidden animate-fade-in border-blue-500/20">
@@ -57,10 +59,10 @@ export default function AgentInspector({ data }: AgentInspectorProps) {
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-slate-100">{data?.name}</h3>
               <Badge
-                variant={statusVariants[data?.status] || "default"}
+                variant={statusVariants[normalizedStatus] || "default"}
                 className="text-[10px]"
               >
-                {(data?.status || "unknown").toUpperCase()}
+                {(normalizedStatus || "unknown").toUpperCase()}
               </Badge>
             </div>
             <span className="text-xs text-slate-500 uppercase tracking-wider">

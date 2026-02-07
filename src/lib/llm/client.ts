@@ -1,10 +1,10 @@
-import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import { ZodSchema } from 'zod';
 
 const MODELS = [
-  'gemini-2.5-flash',
-  'gemini-3-flash',
-  'gemini-2.5-flash-lite',
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'mixtral-8x7b-32768',
 ] as const;
 
 type Model = (typeof MODELS)[number];
@@ -34,23 +34,24 @@ export interface LLMMetrics {
 }
 
 export class AgentLLMClient {
-  private client: GoogleGenAI;
+  private client: Groq;
   private cache: Map<string, CacheEntry> = new Map();
   private cacheTTL = 5 * 60 * 1000; // 5 minutes
   private currentModelIndex = 0;
-  
+
   private totalInputTokens = 0;
   private totalOutputTokens = 0;
   private callCount = 0;
-  private static COST_PER_1K_INPUT = 0.00015;
-  private static COST_PER_1K_OUTPUT = 0.0006;
+  // Groq pricing (approximate)
+  private static COST_PER_1K_INPUT = 0.00005;
+  private static COST_PER_1K_OUTPUT = 0.0001;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is required');
+      throw new Error('GROQ_API_KEY environment variable is required');
     }
-    this.client = new GoogleGenAI({ apiKey });
+    this.client = new Groq({ apiKey });
   }
 
   private estimateTokens(text: string): number {
@@ -89,17 +90,63 @@ export class AgentLLMClient {
   private getFromCache(key: string): string | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
-    
+
     if (Date.now() - entry.timestamp > this.cacheTTL) {
       this.cache.delete(key);
       return null;
     }
-    
+
     return entry.response;
   }
 
   private setCache(key: string, response: string): void {
     this.cache.set(key, { response, timestamp: Date.now() });
+  }
+
+  private normalizeStringValues(obj: unknown): unknown {
+    if (typeof obj === 'string') return obj.toLowerCase().trim();
+    if (Array.isArray(obj)) return obj.map(item => this.normalizeStringValues(item));
+    if (obj !== null && typeof obj === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        result[key] = this.normalizeStringValues(value);
+      }
+      return result;
+    }
+    return obj;
+  }
+
+  private extractJSON(response: string): unknown {
+    let cleaned = response.trim();
+
+    // Try to extract JSON from markdown code blocks first
+    const jsonBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonBlockMatch) {
+      cleaned = jsonBlockMatch[1].trim();
+    }
+
+    // Attempt direct parse
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      // Fall through to regex extraction
+    }
+
+    // Try to find a JSON object or array in the response text
+    const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+    const candidate = objectMatch?.[0] || arrayMatch?.[0];
+
+    if (candidate) {
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        // If the outermost braces didn't work, try the last complete object
+        // (handles cases where there's trailing text after the JSON)
+      }
+    }
+
+    throw new Error('No valid JSON found in response');
   }
 
   private async sleep(ms: number): Promise<void> {
@@ -120,7 +167,7 @@ export class AgentLLMClient {
 
   async generate(options: GenerateOptions): Promise<string> {
     const { prompt, systemPrompt, cache = true, maxRetries = 3 } = options;
-    
+
     // Check cache
     if (cache) {
       const cacheKey = this.getCacheKey(prompt, systemPrompt);
@@ -131,27 +178,33 @@ export class AgentLLMClient {
     }
 
     let lastError: Error | null = null;
-    
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const response = await this.client.models.generateContent({
+        const messages: Groq.Chat.ChatCompletionMessageParam[] = [];
+
+        if (systemPrompt) {
+          messages.push({ role: 'system', content: systemPrompt });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const response = await this.client.chat.completions.create({
           model: this.getCurrentModel(),
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: systemPrompt ? {
-            systemInstruction: systemPrompt,
-          } : undefined,
+          messages,
+          temperature: 0.7,
+          max_tokens: 4096,
         });
 
-        const text = response.text || '';
-        
+        const text = response.choices[0]?.message?.content || '';
+
         this.trackUsage(prompt + (systemPrompt || ''), text);
-        
+
         // Cache successful response
         if (cache) {
           const cacheKey = this.getCacheKey(prompt, systemPrompt);
           this.setCache(cacheKey, text);
         }
-        
+
         return text;
       } catch (error: unknown) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -160,33 +213,33 @@ export class AgentLLMClient {
         if (errorObj?.status === 429) {
           const delay = Math.pow(2, attempt) * 1000;
           await this.sleep(delay);
-          
+
           if (attempt >= 1) {
             this.switchToNextModel();
           }
           continue;
         }
-        
+
         if (errorObj?.status === 404 || errorObj?.message?.includes('not found')) {
           if (this.switchToNextModel()) {
             continue;
           }
         }
-        
+
         if (this.switchToNextModel()) {
           continue;
         }
-        
+
         throw error;
       }
     }
-    
+
     throw lastError || new Error('Max retries exceeded');
   }
 
   async generateStructured<T>(options: GenerateStructuredOptions<T>): Promise<T> {
     const { prompt, systemPrompt, schema, zodSchema, cache = true, maxRetries = 3 } = options;
-    
+
     const structuredPrompt = `${prompt}
 
 Respond with valid JSON matching this schema:
@@ -202,27 +255,25 @@ Return ONLY the JSON, no markdown or explanation.`;
     });
 
     try {
-      let cleaned = response.trim();
-      if (cleaned.startsWith('```json')) {
-        cleaned = cleaned.slice(7);
-      }
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned.slice(3);
-      }
-      if (cleaned.endsWith('```')) {
-        cleaned = cleaned.slice(0, -3);
-      }
-      
-      const parsed = JSON.parse(cleaned.trim());
-      
+      const parsed = this.extractJSON(response);
+
       if (zodSchema) {
+        // Try parsing as-is first
         const validated = zodSchema.safeParse(parsed);
-        if (!validated.success) {
-          throw new Error(`LLM response failed schema validation: ${validated.error.message}`);
+        if (validated.success) {
+          return validated.data;
         }
-        return validated.data;
+
+        // If validation fails, retry with normalized string values (handles case mismatches from LLM)
+        const normalized = this.normalizeStringValues(parsed);
+        const retryValidated = zodSchema.safeParse(normalized);
+        if (retryValidated.success) {
+          return retryValidated.data;
+        }
+
+        throw new Error(`LLM response failed schema validation: ${validated.error.message}`);
       }
-      
+
       return parsed as T;
     } catch (e) {
       if (e instanceof Error && e.message.includes('schema validation')) {
@@ -236,23 +287,30 @@ Return ONLY the JSON, no markdown or explanation.`;
     onChunk: (text: string) => void;
   }): Promise<string> {
     const { prompt, systemPrompt, onChunk } = options;
-    
-    const response = await this.client.models.generateContentStream({
+
+    const messages: Groq.Chat.ChatCompletionMessageParam[] = [];
+
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
+
+    const stream = await this.client.chat.completions.create({
       model: this.getCurrentModel(),
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: systemPrompt ? {
-        systemInstruction: systemPrompt,
-      } : undefined,
+      messages,
+      temperature: 0.7,
+      max_tokens: 4096,
+      stream: true,
     });
 
     let fullText = '';
-    
-    for await (const chunk of response) {
-      const text = chunk.text || '';
+
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || '';
       fullText += text;
       onChunk(text);
     }
-    
+
     return fullText;
   }
 

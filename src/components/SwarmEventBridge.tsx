@@ -5,6 +5,7 @@ import { SwarmEvent } from "@/lib/schemas";
 
 const MAX_RECONNECT_DELAY = 30000;
 const BASE_RECONNECT_DELAY = 1000;
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 export interface SwarmEventBridgeProps {
   runId?: string;
@@ -180,7 +181,12 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
         MAX_RECONNECT_DELAY
       );
       reconnectAttemptRef.current++;
-      
+
+      if (reconnectAttemptRef.current > MAX_RECONNECT_ATTEMPTS) {
+        onError?.(new Error('Max reconnection attempts reached'));
+        return;
+      }
+
       reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), delay);
     };
   }, [runId, onConnected, onDisconnected, handleEvent]);
