@@ -36,7 +36,7 @@ export default function LandingPage() {
             </div>
             <Link href="/dashboard">
               <Button className="group">
-                Launch Mission Control
+                Generate a PRD
                 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
@@ -54,13 +54,12 @@ export default function LandingPage() {
             </div>
 
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400 pb-2">
-              Agent Swarm <br className="hidden md:block" /> Mission Control
+              The PRD Generator <br className="hidden md:block" /> You Can Trust
             </h1>
 
             <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-              Watch AI agents collaborate in real-time with{" "}
-              <span className="text-slate-100">transparent decision-making</span>.
-              The first dashboard designed for Human-in-the-Loop orchestration.
+              Watch a team of AI agents research, write, and audit your Product Requirements Document in real-time.{" "}
+              <span className="text-slate-100">Every section is traceable.</span>
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -69,7 +68,7 @@ export default function LandingPage() {
                   size="lg"
                   className="w-full sm:w-auto h-14 px-8 text-lg shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)]"
                 >
-                  Start Simulation
+                  Generate a PRD
                 </Button>
               </Link>
               <Button
@@ -85,28 +84,28 @@ export default function LandingPage() {
 
         <section id="features" className="py-24 border-t border-white/5 bg-slate-900/20">
           <div className="max-w-7xl mx-auto px-6">
-            <h2 className="text-3xl font-bold mb-12 text-center">Why GlassBox?</h2>
+             <h2 className="text-3xl font-bold mb-12 text-center">Why GlassBox?</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 {
                   icon: GitBranch,
-                  title: "Graph Viz",
-                  desc: "Visualize agent interactions and data flow in real-time.",
+                  title: "Research Agent",
+                  desc: "Analyzes your product idea, identifies target users, constraints, and market context.",
                 },
                 {
                   icon: Shield,
-                  title: "Human Loop",
-                  desc: "Intervene on high-risk actions before execution.",
+                  title: "PM Agent",
+                  desc: "Writes comprehensive PRDs with user stories, requirements, and success metrics.",
                 },
                 {
                   icon: Layout,
-                  title: "Generative UI",
-                  desc: "Agents render React components to communicate results.",
+                  title: "Audit Agent",
+                  desc: "Reviews for completeness, catches missing edge cases, rates confidence.",
                 },
                 {
                   icon: Zap,
-                  title: "Event Timeline",
-                  desc: "Millisecond-precision logging for full auditability.",
+                  title: "Full Transparency",
+                  desc: "See every decision, every edit, every approval in real-time.",
                 },
               ].map((f, i) => (
                 <div
@@ -128,37 +127,37 @@ export default function LandingPage() {
 
         <section id="how-it-works" className="py-24 px-6 max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
+             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Orchestration <br />
-                made simple.
+                PRD generation <br />
+                made transparent.
               </h2>
               <p className="text-slate-400 mb-8 text-lg">
-                GlassBox turns the black box of LLM swarms into a transparent,
-                manageable workflow.
+                GlassBox turns the black box of AI writing into a transparent,
+                verifiable workflow. Watch agents research, write, and audit your PRD.
               </p>
 
               <div className="space-y-8">
                 {[
                   {
                     step: "01",
-                    title: "Define Objective",
-                    desc: "Enter a high-level goal. The Orchestrator agent breaks it down.",
+                    title: "Describe Your Product",
+                    desc: "Enter your product idea. The Research agent analyzes it.",
                   },
                   {
                     step: "02",
-                    title: "Swarm Deploys",
-                    desc: "Specialized agents (Research, Code, Audit) spawn instantly.",
+                    title: "Agents Research & Write",
+                    desc: "Research gathers context. PM agent writes the PRD. Auditor reviews.",
                   },
                   {
                     step: "03",
                     title: "Review & Approve",
-                    desc: "GlassBox pauses for approval on sensitive actions.",
+                    desc: "See every section as it's written. Approve or request changes.",
                   },
                   {
                     step: "04",
-                    title: "Artifact Delivery",
-                    desc: "Receive code, plans, and reports in rich UI formats.",
+                    title: "Get Your PRD",
+                    desc: "Download a verified, comprehensive Product Requirements Document.",
                   },
                 ].map((item, i) => (
                   <div key={i} className="flex gap-4">
@@ -230,21 +229,21 @@ export default function LandingPage() {
                     <span className="text-[10px] text-slate-400 mt-1 block">Research</span>
                   </div>
 
-                  {/* Code node */}
-                  <div className="absolute left-1/2 -translate-x-1/2 top-[100px] w-20 text-center">
-                    <div className="mx-auto w-9 h-9 rounded-lg bg-violet-500/10 border border-slate-700 flex items-center justify-center animate-status-pulse">
-                      <Layout className="w-4 h-4 text-violet-400" />
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Code</span>
-                  </div>
+                   {/* PM node */}
+                   <div className="absolute left-1/2 -translate-x-1/2 top-[100px] w-20 text-center">
+                     <div className="mx-auto w-9 h-9 rounded-lg bg-violet-500/10 border border-slate-700 flex items-center justify-center animate-status-pulse">
+                       <Layout className="w-4 h-4 text-violet-400" />
+                     </div>
+                     <span className="text-[10px] text-slate-400 mt-1 block">PM Agent</span>
+                   </div>
 
-                  {/* Audit node */}
-                  <div className="absolute right-[18%] translate-x-1/2 top-[100px] w-20 text-center">
-                    <div className="mx-auto w-9 h-9 rounded-lg bg-emerald-500/10 border border-slate-700 flex items-center justify-center">
-                      <Shield className="w-4 h-4 text-emerald-400" />
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Audit</span>
-                  </div>
+                   {/* Audit node */}
+                   <div className="absolute right-[18%] translate-x-1/2 top-[100px] w-20 text-center">
+                     <div className="mx-auto w-9 h-9 rounded-lg bg-emerald-500/10 border border-slate-700 flex items-center justify-center">
+                       <Shield className="w-4 h-4 text-emerald-400" />
+                     </div>
+                     <span className="text-[10px] text-slate-400 mt-1 block">Auditor</span>
+                   </div>
 
                   {/* Status legend */}
                   <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-4 text-[9px] text-slate-500">

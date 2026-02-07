@@ -1,21 +1,16 @@
 import { BaseAgent, AgentContext, AgentResult } from "./base";
 import { AUDITOR_SYSTEM_PROMPT } from "@/lib/llm/prompts";
+import { db, artifacts } from "@/db";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const AuditSchema = z.object({
-  overallConfidence: z.enum(["low", "medium", "high"]),
+  confidence: z.enum(["low", "medium", "high"]),
   redFlags: z.array(z.string()),
-  verifyChecklist: z.array(z.string()),
-  assumptions: z.array(z.string()),
   recommendations: z.array(z.string()),
-  artifactReviews: z.array(
-    z.object({
-      artifactName: z.string(),
-      score: z.number().min(1).max(10),
-      issues: z.array(z.string()),
-      suggestions: z.array(z.string()),
-    })
-  ),
+  auditReportMarkdown: z
+    .string()
+    .min(200, "Audit report must be substantive markdown (>= 200 chars)"),
 });
 
 export class AuditorAgent extends BaseAgent {
@@ -31,26 +26,33 @@ export class AuditorAgent extends BaseAgent {
     await this.updateStatus(context.runId, "thinking");
     this.emitProgress(context.runId, "Reviewing submitted work...", { step: "review", percentage: 10 });
 
+    const runArtifacts = await db
+      .select()
+      .from(artifacts)
+      .where(eq(artifacts.runId, context.runId));
+
+    const prdArtifact = runArtifacts.find((a) => a.name === "Product Requirements Document");
+
     const prompt = `Audit task: ${context.task}
 
-${context.data ? `Artifacts to review: ${JSON.stringify(context.data)}` : ""}
+Research context (if any):
+${context.data ? JSON.stringify(context.data) : "(none)"}
 
-Conduct a thorough audit and provide:
-1. Overall confidence assessment
-2. Any red flags or concerns
-3. Verification checklist for the user
-4. Assumptions being made
-5. Recommendations for improvement
-6. Individual artifact reviews with scores
+PRD to review (markdown):
+${prdArtifact ? prdArtifact.content : "(No PRD artifact found yet. If missing, explain what is needed before you can audit.)"}
+
+Conduct a thorough PRD audit and provide:
+1. Overall confidence assessment (high/medium/low)
+2. Specific red flags or concerns (not generic)
+3. Recommendations for improvement (prioritized)
+4. Missing edge cases, unclear requirements, and untestable acceptance criteria
 
 Respond with JSON matching this structure:
 {
-  "overallConfidence": "low|medium|high",
+  "confidence": "low|medium|high",
   "redFlags": ["string"],
-  "verifyChecklist": ["string"],
-  "assumptions": ["string"],
   "recommendations": ["string"],
-  "artifactReviews": [{"artifactName": "string", "score": 1-10, "issues": ["string"], "suggestions": ["string"]}]
+  "auditReportMarkdown": "string (full markdown audit report)"
 }`;
 
     try {
@@ -66,17 +68,22 @@ Respond with JSON matching this structure:
       this.emitProgress(context.runId, "Compiling audit summary and recommendations...", { step: "compile", percentage: 80 });
 
       this.emitEvent(context.runId, "AGENT_MESSAGE", {
-        summary: `Audit complete: ${audit.overallConfidence} confidence, ${audit.redFlags.length} red flags`,
+        summary: `Audit complete: ${audit.confidence} confidence, ${audit.redFlags.length} red flags`,
       });
 
       return {
         status: "success",
-        data: { audit },
+        data: {
+          confidence: audit.confidence,
+          redFlags: audit.redFlags,
+          recommendations: audit.recommendations,
+          auditReportMarkdown: audit.auditReportMarkdown,
+        },
         artifacts: [
           {
-            name: "audit-summary.json",
-            content: JSON.stringify(audit, null, 2),
-            contentType: "application/json",
+            name: "PRD Audit Report",
+            content: audit.auditReportMarkdown,
+            contentType: "text/markdown",
           },
         ],
       };

@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
 import { SwarmEvent } from "@/lib/schemas";
@@ -26,10 +28,10 @@ import { LogoutButton } from "@/components/AuthProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const SAMPLE_MISSIONS = [
-  { emoji: "📝", title: "Blog Post", prompt: "Write a technical blog post about building AI agent swarms with human-in-the-loop oversight" },
-  { emoji: "🚀", title: "Product Launch", prompt: "Create a product launch plan for an AI-powered developer tool, including messaging, timeline, and channels" },
-  { emoji: "🔌", title: "API Design", prompt: "Design a RESTful API for a real-time collaboration platform with WebSocket events and rate limiting" },
-  { emoji: "🔒", title: "Security Audit", prompt: "Perform a security audit of a Node.js Express application covering OWASP Top 10 vulnerabilities" },
+  { emoji: "📱", title: "Mobile App PRD", prompt: "Create a PRD for a mobile app that helps users find and book dog-friendly restaurants near them" },
+  { emoji: "🛒", title: "E-commerce Feature", prompt: "Create a PRD for adding a real-time collaborative shopping cart with live cursors to an e-commerce platform" },
+  { emoji: "🏥", title: "HealthTech Platform", prompt: "Create a PRD for a telemedicine platform that connects patients with specialists via AI-triaged video consultations" },
+  { emoji: "🎓", title: "EdTech Tool", prompt: "Create a PRD for an AI-powered learning platform that adapts lesson difficulty based on student performance" },
 ];
 
 interface AgentInfo {
@@ -49,8 +51,24 @@ interface Artifact {
 function ArtifactBlock({ name, content, contentType }: { name: string; content: string; contentType?: string }) {
   const [expanded, setExpanded] = useState(false);
   const isCode = contentType?.includes("json") || contentType?.includes("javascript") || contentType?.includes("typescript");
+  const isMarkdown = contentType?.includes("markdown") || content.includes("## ") || content.includes("# ");
+  
   const lines = content.split("\n");
   const previewLines = lines.slice(0, 8);
+
+  const getPlainPreview = (text: string) => {
+    return text
+      .replace(/#{1,6}\s/g, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/`(.*?)`/g, '$1')
+      .replace(/>\s/g, '')
+      .replace(/[-*]\s/g, '  ')
+      .split('\n')
+      .filter(line => line.trim())
+      .slice(0, 4)
+      .join('\n');
+  };
 
   return (
     <div className="my-2 ml-3 max-w-[95%] animate-slide-in">
@@ -65,16 +83,30 @@ function ArtifactBlock({ name, content, contentType }: { name: string; content: 
       </button>
       {expanded && (
         <div className="mt-1 ml-5 bg-slate-900/80 border border-white/5 rounded-lg overflow-hidden">
-          <pre className="p-3 text-xs text-slate-400 overflow-x-auto font-mono leading-relaxed max-h-[300px] overflow-y-auto scrollbar-thin">
-            {content}
-          </pre>
+          {isMarkdown ? (
+            <div className="p-4 max-h-[500px] overflow-y-auto scrollbar-thin text-sm text-slate-300 leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-slate-100 [&_h1]:mt-6 [&_h1]:mb-3 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-slate-200 [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-slate-300 [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:mb-3 [&_p]:text-slate-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-3 [&_ul]:text-slate-400 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:text-slate-400 [&_li]:mb-1 [&_strong]:text-slate-200 [&_strong]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-blue-500/30 [&_blockquote]:pl-4 [&_blockquote]:text-slate-500 [&_blockquote]:italic [&_blockquote]:my-3 [&_code]:bg-slate-800 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:text-blue-300 [&_pre]:bg-slate-900 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:my-3 [&_table]:w-full [&_table]:text-xs [&_th]:text-left [&_th]:text-slate-300 [&_th]:border-b [&_th]:border-slate-700 [&_th]:pb-2 [&_th]:pr-4 [&_td]:text-slate-400 [&_td]:border-b [&_td]:border-slate-800 [&_td]:py-2 [&_td]:pr-4 [&_hr]:border-slate-800 [&_hr]:my-4">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <pre className="p-3 text-xs text-slate-400 overflow-x-auto font-mono leading-relaxed max-h-[300px] overflow-y-auto scrollbar-thin">
+              {content}
+            </pre>
+          )}
         </div>
       )}
       {!expanded && (
         <div className="mt-1 ml-5 bg-slate-900/50 border border-white/5 rounded-lg overflow-hidden">
-          <pre className="px-3 py-2 text-[11px] text-slate-600 overflow-hidden font-mono leading-relaxed">
-            {previewLines.join("\n")}{lines.length > 8 ? "\n..." : ""}
-          </pre>
+          {isMarkdown ? (
+            <div className="px-3 py-2 text-sm text-slate-500 leading-relaxed">
+              {getPlainPreview(content)}
+            </div>
+          ) : (
+            <pre className="px-3 py-2 text-[11px] text-slate-600 overflow-hidden font-mono leading-relaxed">
+              {previewLines.join("\n")}{lines.length > 8 ? "\n..." : ""}
+            </pre>
+          )}
         </div>
       )}
     </div>

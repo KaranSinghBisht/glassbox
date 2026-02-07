@@ -1,20 +1,5 @@
 import { BaseAgent, AgentContext, AgentResult } from "./base";
 import { RESEARCHER_SYSTEM_PROMPT } from "@/lib/llm/prompts";
-import { z } from "zod";
-
-const ResearchSchema = z.object({
-  findings: z.array(
-    z.object({
-      topic: z.string(),
-      summary: z.string(),
-      confidence: z.enum(["low", "medium", "high"]),
-      sources: z.array(z.string()).optional(),
-    })
-  ),
-  assumptions: z.array(z.string()),
-  constraints: z.array(z.string()),
-  recommendations: z.array(z.string()),
-});
 
 export class ResearcherAgent extends BaseAgent {
   constructor(id?: string) {
@@ -25,6 +10,12 @@ export class ResearcherAgent extends BaseAgent {
     return RESEARCHER_SYSTEM_PROMPT;
   }
 
+  private stripMarkdownFences(text: string): string {
+    const trimmed = text.trim();
+    const fenceMatch = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/);
+    return fenceMatch ? fenceMatch[1].trim() : trimmed;
+  }
+
   protected async processTask(context: AgentContext): Promise<AgentResult> {
     await this.updateStatus(context.runId, "thinking");
     this.emitProgress(context.runId, "Analyzing research requirements...", { step: "analyze", percentage: 10 });
@@ -33,44 +24,52 @@ export class ResearcherAgent extends BaseAgent {
 
 ${context.data ? `Additional context: ${JSON.stringify(context.data)}` : ""}
 
-Conduct research and provide:
-1. Key findings with confidence levels
-2. Assumptions being made
-3. Constraints to consider
-4. Recommendations for the Builder agent
+Analyze the user's product idea and produce a substantive Research Brief in MARKDOWN.
 
-Respond with JSON matching this structure:
-{
-  "findings": [{"topic": "string", "summary": "string", "confidence": "low|medium|high", "sources": ["optional"]}],
-  "assumptions": ["string"],
-  "constraints": ["string"],
-  "recommendations": ["string"]
-}`;
+Your brief must include, at minimum:
+- Target users & personas (at least 2, with goals, pains, and context)
+- Market context & positioning
+- Competitors/alternatives (direct + indirect)
+- Constraints (technical, privacy/legal, operational)
+- Key risks and assumptions (with suggested validations/mitigations)
+
+Write in complete sentences and make it decision-useful for writing a PRD.
+
+IMPORTANT: Return ONLY the raw markdown Research Brief. Do NOT wrap in JSON or code fences.
+Start directly with the first heading.`;
 
     try {
       this.emitProgress(context.runId, "Gathering context and constraints...", { step: "gather", percentage: 30 });
-      
-      const research = await this.llm.generateStructured<z.infer<typeof ResearchSchema>>({
+
+      const rawResponse = await this.llm.generate({
         prompt,
         systemPrompt: this.getSystemPrompt(),
-        schema: ResearchSchema.shape,
-        zodSchema: ResearchSchema,
+        cache: false,
       });
+
+      const researchBriefMarkdown = this.stripMarkdownFences(rawResponse);
+
+      if (researchBriefMarkdown.length < 200) {
+        return {
+          status: "error",
+          message: `Research brief too short (${researchBriefMarkdown.length} chars). Expected >= 200 chars.`,
+        };
+      }
 
       this.emitProgress(context.runId, "Compiling findings and recommendations...", { step: "compile", percentage: 80 });
 
       this.emitEvent(context.runId, "AGENT_MESSAGE", {
-        summary: `Found ${research.findings.length} findings, ${research.recommendations.length} recommendations`,
+        summary: "Research brief created",
       });
 
       return {
         status: "success",
-        data: { research },
+        data: { researchBriefMarkdown },
         artifacts: [
           {
-            name: "research-findings.json",
-            content: JSON.stringify(research, null, 2),
-            contentType: "application/json",
+            name: "Research Brief",
+            content: researchBriefMarkdown,
+            contentType: "text/markdown",
           },
         ],
       };

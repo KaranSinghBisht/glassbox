@@ -119,20 +119,17 @@ export class AgentLLMClient {
   private extractJSON(response: string): unknown {
     let cleaned = response.trim();
 
-    // Try to extract JSON from markdown code blocks first
-    const jsonBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonBlockMatch = cleaned.match(/^```(?:json)?\s*\n([\s\S]*)\n```\s*$/);
     if (jsonBlockMatch) {
       cleaned = jsonBlockMatch[1].trim();
     }
 
-    // Attempt direct parse
     try {
       return JSON.parse(cleaned);
     } catch {
-      // Fall through to regex extraction
+      // fall through
     }
 
-    // Try to find a JSON object or array in the response text
     const objectMatch = cleaned.match(/\{[\s\S]*\}/);
     const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
     const candidate = objectMatch?.[0] || arrayMatch?.[0];
@@ -141,8 +138,7 @@ export class AgentLLMClient {
       try {
         return JSON.parse(candidate);
       } catch {
-        // If the outermost braces didn't work, try the last complete object
-        // (handles cases where there's trailing text after the JSON)
+        // fall through
       }
     }
 
@@ -192,7 +188,7 @@ export class AgentLLMClient {
           model: this.getCurrentModel(),
           messages,
           temperature: 0.7,
-          max_tokens: 4096,
+          max_tokens: 8192,
         });
 
         const text = response.choices[0]?.message?.content || '';
@@ -299,7 +295,7 @@ Return ONLY the JSON, no markdown or explanation.`;
       model: this.getCurrentModel(),
       messages,
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 8192,
       stream: true,
     });
 
