@@ -6,6 +6,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import SwarmGraph, { AgentStatus, SwarmGraphHandle } from "@/components/SwarmGraph";
 import { useSwarmEvents } from "@/components/SwarmEventBridge";
+import TamboEventBridge from "@/components/TamboEventBridge";
+import TamboThread from "@/components/TamboThread";
 import { SwarmEvent } from "@/lib/schemas";
 import { Button, Badge, cn } from "@/components/ui/primitives";
 import {
@@ -123,6 +125,7 @@ export default function Dashboard() {
   const [runStatus, setRunStatus] = useState<string>("pending");
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
 
+  const [rightTab, setRightTab] = useState<"ai" | "mesh">("ai");
   const [runStartTime, setRunStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -521,27 +524,51 @@ export default function Dashboard() {
         </div>
 
         <div className="hidden lg:flex lg:w-[45%] border-l border-white/5 flex-col relative">
-          <div className="absolute top-3 left-4 z-10 pointer-events-none">
-            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
-              <Zap className="w-3 h-3" /> Agent Mesh
-            </span>
+          <div className="flex items-center gap-0 border-b border-white/5 shrink-0 z-10 bg-slate-950">
+            <button
+              onClick={() => setRightTab("ai")}
+              className={cn(
+                "px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5",
+                rightTab === "ai" ? "text-blue-400 border-b-2 border-blue-400" : "text-slate-600 hover:text-slate-400"
+              )}
+            >
+              <Zap className="w-3 h-3" /> AI Components
+            </button>
+            <button
+              onClick={() => setRightTab("mesh")}
+              className={cn(
+                "px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5",
+                rightTab === "mesh" ? "text-blue-400 border-b-2 border-blue-400" : "text-slate-600 hover:text-slate-400"
+              )}
+            >
+              <Cpu className="w-3 h-3" /> Agent Mesh
+            </button>
           </div>
 
-          <ErrorBoundary fallbackTitle="Graph error">
-            <div className="flex-1">
-              <SwarmGraph ref={graphRef} className="bg-slate-950" />
+          {rightTab === "ai" ? (
+            <div className="flex-1 overflow-hidden">
+              <ErrorBoundary fallbackTitle="Tambo streaming error">
+                <TamboThread />
+              </ErrorBoundary>
             </div>
-          </ErrorBoundary>
-
-          {!runId && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-slate-950/40">
-              <div className="text-center opacity-40">
-                <Cpu className="w-10 h-10 mx-auto mb-2 text-slate-700" />
-                <p className="text-[11px] text-slate-600 font-mono">agents idle</p>
-              </div>
+          ) : (
+            <div className="flex-1 relative">
+              <ErrorBoundary fallbackTitle="Graph error">
+                <SwarmGraph ref={graphRef} className="bg-slate-950" />
+              </ErrorBoundary>
+              {!runId && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-slate-950/40">
+                  <div className="text-center opacity-40">
+                    <Cpu className="w-10 h-10 mx-auto mb-2 text-slate-700" />
+                    <p className="text-[11px] text-slate-600 font-mono">agents idle</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
+
+        <TamboEventBridge events={events} />
       </main>
     </div>
   );
