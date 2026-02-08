@@ -104,7 +104,7 @@ export class AgentLLMClient {
   }
 
   private normalizeStringValues(obj: unknown): unknown {
-    if (typeof obj === 'string') return obj.toLowerCase().trim();
+    if (typeof obj === 'string') return obj.length < 50 ? obj.toLowerCase().trim() : obj.trim();
     if (Array.isArray(obj)) return obj.map(item => this.normalizeStringValues(item));
     if (obj !== null && typeof obj === 'object') {
       const result: Record<string, unknown> = {};

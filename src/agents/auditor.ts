@@ -8,9 +8,7 @@ const AuditSchema = z.object({
   confidence: z.enum(["low", "medium", "high"]),
   redFlags: z.array(z.string()),
   recommendations: z.array(z.string()),
-  auditReportMarkdown: z
-    .string()
-    .min(200, "Audit report must be substantive markdown (>= 200 chars)"),
+  auditReportMarkdown: z.string().min(1),
 });
 
 export class AuditorAgent extends BaseAgent {
