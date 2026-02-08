@@ -73,6 +73,10 @@ export abstract class BaseAgent {
         return result;
       }
 
+      if (result.artifacts?.length) {
+        await this.saveArtifacts(context.runId, result.artifacts);
+      }
+
       if (result.proposals?.length) {
         const proposalIds = await this.createProposals(context.runId, result.proposals);
         
@@ -90,10 +94,6 @@ export abstract class BaseAgent {
         }
         
         await this.updateStatus(context.runId, "acting");
-      }
-
-      if (result.artifacts?.length) {
-        await this.saveArtifacts(context.runId, result.artifacts);
       }
 
       await this.updateStatus(context.runId, "done");

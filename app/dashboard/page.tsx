@@ -10,7 +10,6 @@ import { SwarmEvent } from "@/lib/schemas";
 import { Button, Badge, cn } from "@/components/ui/primitives";
 import {
   RotateCcw,
-  Box,
   Zap,
   Terminal,
   Cpu,
@@ -23,6 +22,7 @@ import {
   ArrowRight,
   Loader2,
   Send,
+  Share2,
 } from "lucide-react";
 import { LogoutButton } from "@/components/AuthProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -168,7 +168,9 @@ export default function Dashboard() {
           contentType: a.contentType,
         })));
       }
-    } catch {}
+    } catch (err) {
+      console.error("Failed to fetch artifacts:", err);
+    }
   }, []);
 
   const seenEventIds = useRef<Set<string>>(new Set());
@@ -408,9 +410,7 @@ export default function Dashboard() {
       <header className="h-11 border-b border-white/5 bg-slate-950 flex items-center justify-between px-4 shrink-0 z-50">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 font-bold text-sm tracking-tight hover:opacity-80 transition-opacity">
-            <div className="w-5 h-5 bg-gradient-to-tr from-blue-600 to-violet-600 rounded flex items-center justify-center">
-              <Box className="w-3 h-3 text-white" />
-            </div>
+            <img src="/logo.png" alt="GlassBox" className="w-5 h-5 rounded" />
             <span className="text-slate-200">GlassBox</span>
           </Link>
           <Badge variant={connected ? "success" : "default"} className="h-5 gap-1 px-2 text-[10px]">
@@ -464,8 +464,14 @@ export default function Dashboard() {
                 )}
 
                 {isRunDone && (
-                  <div className="mt-4 mb-2 text-xs text-slate-500 font-mono text-center">
-                    Type a follow-up or <button onClick={handleReset} className="text-blue-400 hover:underline">start fresh</button>
+                  <div className="mt-4 mb-2 text-xs text-slate-500 font-mono text-center flex items-center justify-center gap-3">
+                    <span>Type a follow-up or <button onClick={handleReset} className="text-blue-400 hover:underline">start fresh</button></span>
+                    {runId && (
+                      <Link href={`/share/${runId}`} target="_blank" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-colors text-xs font-medium">
+                        <Share2 className="w-3 h-3" />
+                        Share
+                      </Link>
+                    )}
                   </div>
                 )}
               </div>

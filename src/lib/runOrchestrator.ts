@@ -1,5 +1,5 @@
-import { db, runs } from "@/db";
-import { eq } from "drizzle-orm";
+import { db, runs, agents as agentsTable, actionProposals } from "@/db";
+import { eq, and, ne } from "drizzle-orm";
 import { eventBus } from "./eventBus";
 import {
   OrchestratorAgent,
@@ -12,6 +12,7 @@ interface Delegation {
   priority: number;
 }
 
+const AGENT_TIMEOUT_MS = 5 * 60 * 1000;
 const activeRuns = new Map<string, AbortController>();
 
 export function cancelRun(runId: string): boolean {
@@ -33,25 +34,6 @@ export class RunOrchestrator {
     this.runId = runId;
     this.prompt = prompt;
     this.abortController = new AbortController();
-  }
-
-  static async create(prompt: string): Promise<RunOrchestrator> {
-    const runId = crypto.randomUUID();
-
-    await db.insert(runs).values({
-      id: runId,
-      prompt,
-      status: "pending",
-    });
-
-    eventBus.emit({
-      type: "RUN_CREATED",
-      runId,
-      ts: Date.now(),
-      payload: { prompt },
-    });
-
-    return new RunOrchestrator(runId, prompt);
   }
 
   private checkCancelled(): void {
@@ -96,12 +78,27 @@ export class RunOrchestrator {
         const agent = createAgent(delegation.agent);
         await agent.spawn(this.runId, orchestrator.id);
 
-        const result = await agent.execute({
-          runId: this.runId,
-          task: delegation.task,
-          parentId: orchestrator.id,
-          data: researchData,
-        });
+        let result;
+        try {
+          result = await Promise.race([
+            agent.execute({
+              runId: this.runId,
+              task: delegation.task,
+              parentId: orchestrator.id,
+              data: researchData,
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () => reject(new Error(`Agent ${delegation.agent} timed out after ${AGENT_TIMEOUT_MS / 1000}s`)),
+                AGENT_TIMEOUT_MS
+              )
+            ),
+          ]);
+        } catch (agentError) {
+          hasFailure = true;
+          failedAgents.push(`${delegation.agent}: ${agentError instanceof Error ? agentError.message : "unknown error"}`);
+          continue;
+        }
 
         this.checkCancelled();
 
@@ -132,6 +129,27 @@ export class RunOrchestrator {
       const isCancelled = this.abortController.signal.aborted;
       await this.updateStatus("failed");
 
+      await db
+        .update(agentsTable)
+        .set({ status: "error" })
+        .where(
+          and(
+            eq(agentsTable.runId, this.runId),
+            ne(agentsTable.status, "done"),
+            ne(agentsTable.status, "error")
+          )
+        );
+
+      await db
+        .update(actionProposals)
+        .set({ status: "expired" })
+        .where(
+          and(
+            eq(actionProposals.runId, this.runId),
+            eq(actionProposals.status, "pending")
+          )
+        );
+
       eventBus.emit({
         type: "ERROR",
         runId: this.runId,
@@ -139,7 +157,6 @@ export class RunOrchestrator {
         payload: {
           code: isCancelled ? "RUN_CANCELLED" : "RUN_EXECUTION_FAILED",
           message: error instanceof Error ? error.message : "Unknown error",
-          stack: error instanceof Error ? error.stack : undefined,
         },
       });
 
@@ -158,6 +175,7 @@ export class RunOrchestrator {
       throw error;
     } finally {
       activeRuns.delete(this.runId);
+      eventBus.clearRun(this.runId);
     }
   }
 
@@ -177,14 +195,31 @@ export class RunOrchestrator {
   }
 }
 
-export async function startRun(prompt: string): Promise<string> {
-  const orchestrator = await RunOrchestrator.create(prompt);
+export async function createRun(prompt: string): Promise<string> {
+  const runId = crypto.randomUUID();
 
-  orchestrator.execute().catch((error) => {
-    console.error(`[Run ${orchestrator.getRunId()}] Failed:`, error);
+  await db.insert(runs).values({
+    id: runId,
+    prompt,
+    status: "pending",
   });
 
-  return orchestrator.getRunId();
+  eventBus.emit({
+    type: "RUN_CREATED",
+    runId,
+    ts: Date.now(),
+    payload: { prompt },
+  });
+
+  return runId;
+}
+
+export function startRun(runId: string, prompt: string): void {
+  const orchestrator = new RunOrchestrator(runId, prompt);
+
+  orchestrator.execute().catch((error) => {
+    console.error(`[Run ${runId}] Failed:`, error);
+  });
 }
 
 export async function getRun(runId: string) {

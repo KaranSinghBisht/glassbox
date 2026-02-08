@@ -87,7 +87,6 @@ export const ApprovalRequiredPayload = z.object({
 export const ErrorPayload = z.object({
   code: z.string().optional().describe("Error code if available"),
   message: z.string().describe("Error message"),
-  stack: z.string().optional().describe("Stack trace if available"),
 });
 
 export const EventSchema = z.discriminatedUnion("type", [

@@ -1,10 +1,10 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
 
-const sqlite = new Database("sqlite.db");
-sqlite.pragma("journal_mode = WAL");
+const connectionString = process.env.DATABASE_URL!;
+const client = postgres(connectionString, { prepare: false });
 
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(client, { schema });
 
 export * from "./schema";

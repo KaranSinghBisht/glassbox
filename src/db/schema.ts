@@ -1,7 +1,7 @@
 import { relations } from "drizzle-orm";
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, boolean, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 
-export const runs = sqliteTable("runs", {
+export const runs = pgTable("runs", {
   id: text("id").primaryKey(),
   prompt: text("prompt").notNull(),
   status: text("status", {
@@ -9,13 +9,13 @@ export const runs = sqliteTable("runs", {
   })
     .notNull()
     .default("pending"),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
-    .$defaultFn(() => new Date()),
-  completedAt: integer("completed_at", { mode: "timestamp" }),
+    .defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
-export const agents = sqliteTable("agents", {
+export const agents = pgTable("agents", {
   id: text("id").primaryKey(),
   runId: text("run_id")
     .notNull()
@@ -34,23 +34,23 @@ export const agents = sqliteTable("agents", {
   index("agents_run_id_idx").on(table.runId),
 ]);
 
-export const events = sqliteTable("events", {
+export const events = pgTable("events", {
   id: text("id").primaryKey(),
   runId: text("run_id")
     .notNull()
     .references(() => runs.id, { onDelete: "cascade" }),
   agentId: text("agent_id").references(() => agents.id, { onDelete: "cascade" }),
   type: text("type").notNull(),
-  payload: text("payload", { mode: "json" }),
-  timestamp: integer("timestamp", { mode: "timestamp" })
+  payload: jsonb("payload"),
+  timestamp: timestamp("timestamp", { withTimezone: true })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 }, (table) => [
   index("events_run_id_idx").on(table.runId),
   index("events_timestamp_idx").on(table.timestamp),
 ]);
 
-export const artifacts = sqliteTable("artifacts", {
+export const artifacts = pgTable("artifacts", {
   id: text("id").primaryKey(),
   runId: text("run_id")
     .notNull()
@@ -61,14 +61,14 @@ export const artifacts = sqliteTable("artifacts", {
   name: text("name").notNull(),
   contentType: text("content_type").notNull().default("text/plain"),
   content: text("content").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 }, (table) => [
   index("artifacts_run_id_idx").on(table.runId),
 ]);
 
-export const actionProposals = sqliteTable("action_proposals", {
+export const actionProposals = pgTable("action_proposals", {
   id: text("id").primaryKey(),
   runId: text("run_id")
     .notNull()
@@ -91,24 +91,24 @@ export const actionProposals = sqliteTable("action_proposals", {
   })
     .notNull()
     .default("pending"),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 }, (table) => [
   index("action_proposals_run_id_idx").on(table.runId),
   index("action_proposals_status_idx").on(table.status),
 ]);
 
-export const approvals = sqliteTable("approvals", {
+export const approvals = pgTable("approvals", {
   id: text("id").primaryKey(),
   proposalId: text("proposal_id")
     .notNull()
     .references(() => actionProposals.id, { onDelete: "cascade" }),
-  approved: integer("approved", { mode: "boolean" }).notNull(),
+  approved: boolean("approved").notNull(),
   reason: text("reason"),
-  approvedAt: integer("approved_at", { mode: "timestamp" })
+  approvedAt: timestamp("approved_at", { withTimezone: true })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 });
 
 export const runsRelations = relations(runs, ({ many }) => ({

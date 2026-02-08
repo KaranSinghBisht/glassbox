@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const proposals = await getPendingProposals(runId);
     return NextResponse.json(proposals);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[api/proposals] Error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

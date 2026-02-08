@@ -44,127 +44,111 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptRef = useRef(0);
-  const isConnectingRef = useRef(false);
   const connectRef = useRef<() => void>(() => {});
   const seenEventIdsRef = useRef<Set<string>>(new Set());
   const lastRunIdRef = useRef<string | undefined>(undefined);
   const parentMapRef = useRef<Map<string, string>>(new Map());
 
-  const handleEvent = useCallback(
-    (event: SwarmEvent) => {
-      const eventId = event.id || `${event.type}-${event.ts}-${event.agentId || ""}`;
-      if (seenEventIdsRef.current.has(eventId)) {
-        return;
-      }
-      seenEventIdsRef.current.add(eventId);
+  const handleEventRef = useRef<(event: SwarmEvent) => void>(() => {});
 
-      onRawEvent?.(event);
-      
-      switch (event.type) {
-        case "AGENT_SPAWNED":
-          if (event.agentId && event.payload) {
-            if (event.payload.parentId) {
-              parentMapRef.current.set(event.agentId, event.payload.parentId);
-            }
-            onAgentSpawned?.(
-              event.agentId,
-              event.payload.name,
-              event.payload.role,
-              event.payload.parentId
-            );
-          }
-          break;
-
-        case "AGENT_STATUS":
-          if (event.agentId && event.payload) {
-            onAgentStatusChange?.(event.agentId, event.payload.status);
-            const parentId = parentMapRef.current.get(event.agentId);
-            if (parentId) {
-              const activeStatuses = new Set(["thinking", "acting", "waiting"]);
-              const active = activeStatuses.has(event.payload.status);
-              onEdgeActivate?.(parentId, event.agentId, active);
-            }
-          }
-          break;
-
-        case "ARTIFACT_CREATED":
-          if (event.agentId && event.payload) {
-            onArtifactCreated?.(
-              event.payload.artifactId,
-              event.payload.name,
-              event.agentId
-            );
-          }
-          break;
-
-        case "APPROVAL_REQUIRED":
-          if (event.payload) {
-            onApprovalRequired?.(
-              event.payload.proposalId,
-              event.payload.actionId,
-              event.payload.title
-            );
-          }
-          break;
-
-        case "ERROR":
-          if (event.payload) {
-            onError?.(new Error(event.payload.message));
-          }
-          break;
-
-        case "RUN_COMPLETED":
-          if (event.payload) {
-            onRunCompleted?.(event.payload.status);
-          }
-          break;
-      }
-    },
-    [
-      onAgentSpawned,
-      onAgentStatusChange,
-      onEdgeActivate,
-      onArtifactCreated,
-      onApprovalRequired,
-      onRunCompleted,
-      onError,
-      onRawEvent,
-    ]
-  );
-
-  const connect = useCallback(() => {
-    if (!runId) {
+  handleEventRef.current = (event: SwarmEvent) => {
+    const eventId = event.id || `${event.type}-${event.ts}-${event.agentId || ""}`;
+    if (seenEventIdsRef.current.has(eventId)) {
       return;
     }
+    seenEventIdsRef.current.add(eventId);
 
-    if (isConnectingRef.current || eventSourceRef.current?.readyState === EventSource.OPEN) {
-      return;
+    onRawEvent?.(event);
+
+    switch (event.type) {
+      case "AGENT_SPAWNED":
+        if (event.agentId && event.payload) {
+          if (event.payload.parentId) {
+            parentMapRef.current.set(event.agentId, event.payload.parentId);
+          }
+          onAgentSpawned?.(
+            event.agentId,
+            event.payload.name,
+            event.payload.role,
+            event.payload.parentId
+          );
+        }
+        break;
+
+      case "AGENT_STATUS":
+        if (event.agentId && event.payload) {
+          onAgentStatusChange?.(event.agentId, event.payload.status);
+          const parentId = parentMapRef.current.get(event.agentId);
+          if (parentId) {
+            const activeStatuses = new Set(["thinking", "acting", "waiting"]);
+            const active = activeStatuses.has(event.payload.status);
+            onEdgeActivate?.(parentId, event.agentId, active);
+          }
+        }
+        break;
+
+      case "ARTIFACT_CREATED":
+        if (event.agentId && event.payload) {
+          onArtifactCreated?.(
+            event.payload.artifactId,
+            event.payload.name,
+            event.agentId
+          );
+        }
+        break;
+
+      case "APPROVAL_REQUIRED":
+        if (event.payload) {
+          onApprovalRequired?.(
+            event.payload.proposalId,
+            event.payload.actionId,
+            event.payload.title
+          );
+        }
+        break;
+
+      case "ERROR":
+        if (event.payload) {
+          onError?.(new Error(event.payload.message));
+        }
+        break;
+
+      case "RUN_COMPLETED":
+        if (event.payload) {
+          onRunCompleted?.(event.payload.status);
+        }
+        break;
     }
+  };
 
-    if (lastRunIdRef.current !== runId) {
-      seenEventIdsRef.current.clear();
-      parentMapRef.current.clear();
-      lastRunIdRef.current = runId;
-    }
+  const onConnectedRef = useRef(onConnected);
+  onConnectedRef.current = onConnected;
+  const onDisconnectedRef = useRef(onDisconnected);
+  onDisconnectedRef.current = onDisconnected;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
-    isConnectingRef.current = true;
-    
+  useEffect(() => {
+    if (!runId) return;
+
+    seenEventIdsRef.current.clear();
+    parentMapRef.current.clear();
+    lastRunIdRef.current = runId;
+
     const url = `/api/run/events?runId=${encodeURIComponent(runId)}`;
-
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      isConnectingRef.current = false;
       reconnectAttemptRef.current = 0;
-      onConnected?.();
+      onConnectedRef.current?.();
     };
 
     eventSource.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
         if (data.type === "connected") return;
-        handleEvent(data as SwarmEvent);
+        handleEventRef.current(data as SwarmEvent);
       } catch (err) {
         console.error("Failed to parse event:", err);
       }
@@ -173,9 +157,8 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
     eventSource.onerror = () => {
       eventSource.close();
       eventSourceRef.current = null;
-      isConnectingRef.current = false;
-      onDisconnected?.();
-      
+      onDisconnectedRef.current?.();
+
       const delay = Math.min(
         BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttemptRef.current),
         MAX_RECONNECT_DELAY
@@ -183,33 +166,33 @@ export function useSwarmEvents(props: SwarmEventBridgeProps) {
       reconnectAttemptRef.current++;
 
       if (reconnectAttemptRef.current > MAX_RECONNECT_ATTEMPTS) {
-        onError?.(new Error('Max reconnection attempts reached'));
+        onErrorRef.current?.(new Error("Max reconnection attempts reached"));
         return;
       }
 
-      reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), delay);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectRef.current();
+      }, delay);
     };
-  }, [runId, onConnected, onDisconnected, handleEvent]);
 
-  useEffect(() => {
-    connectRef.current = connect;
-  }, [connect]);
-
-  useEffect(() => {
-    connect();
+    connectRef.current = () => {
+      if (eventSourceRef.current?.readyState === EventSource.OPEN) return;
+      const es = new EventSource(url);
+      eventSourceRef.current = es;
+      es.onopen = eventSource.onopen;
+      es.onmessage = eventSource.onmessage;
+      es.onerror = eventSource.onerror;
+    };
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
+      eventSource.close();
+      eventSourceRef.current = null;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      isConnectingRef.current = false;
     };
-  }, [connect]);
+  }, [runId]);
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {

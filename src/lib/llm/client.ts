@@ -164,6 +164,10 @@ export class AgentLLMClient {
   async generate(options: GenerateOptions): Promise<string> {
     const { prompt, systemPrompt, cache = true, maxRetries = 3 } = options;
 
+    // Reset to primary model for each new call so one agent's fallback
+    // doesn't permanently degrade all subsequent agents
+    this.currentModelIndex = 0;
+
     // Check cache
     if (cache) {
       const cacheKey = this.getCacheKey(prompt, systemPrompt);

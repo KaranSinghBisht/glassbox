@@ -20,24 +20,23 @@ export async function approveProposal(proposalId: string, reason?: string) {
     throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
   }
 
-  // Use synchronous transaction for better-sqlite3
-  const result = db.transaction((tx) => {
-    const updateResult = tx
+  const result = await db.transaction(async (tx) => {
+    const updated = await tx
       .update(actionProposals)
       .set({ status: "approved" })
       .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")))
-      .run();
+      .returning({ id: actionProposals.id });
 
-    if (updateResult.changes === 0) {
+    if (updated.length === 0) {
       throw new Error(`Proposal ${proposalId} was already processed by another request`);
     }
 
-    tx.insert(approvals).values({
+    await tx.insert(approvals).values({
       id: approvalId,
       proposalId,
       approved: true,
       reason,
-    }).run();
+    });
 
     return { proposal };
   });
@@ -69,24 +68,23 @@ export async function rejectProposal(proposalId: string, reason?: string) {
     throw new Error(`Proposal ${proposalId} is not pending (status: ${proposal.status})`);
   }
 
-  // Use synchronous transaction for better-sqlite3
-  const result = db.transaction((tx) => {
-    const updateResult = tx
+  const result = await db.transaction(async (tx) => {
+    const updated = await tx
       .update(actionProposals)
       .set({ status: "rejected" })
       .where(and(eq(actionProposals.id, proposalId), eq(actionProposals.status, "pending")))
-      .run();
+      .returning({ id: actionProposals.id });
 
-    if (updateResult.changes === 0) {
+    if (updated.length === 0) {
       throw new Error(`Proposal ${proposalId} was already processed by another request`);
     }
 
-    tx.insert(approvals).values({
+    await tx.insert(approvals).values({
       id: approvalId,
       proposalId,
       approved: false,
       reason,
-    }).run();
+    });
 
     return { proposal };
   });
@@ -120,8 +118,41 @@ export async function getProposal(proposalId: string) {
 }
 
 export async function waitForApproval(
-  proposalId: string
+  proposalId: string,
+  timeoutMs: number = 30 * 60 * 1000
 ): Promise<{ approved: boolean; reason?: string }> {
-  await approveProposal(proposalId, "Auto-approved");
-  return { approved: true };
+  // Check if already processed (handles race where user approved before we subscribed)
+  const existing = await db.query.actionProposals.findFirst({
+    where: eq(actionProposals.id, proposalId),
+  });
+
+  if (existing?.status === "approved") {
+    return { approved: true };
+  }
+  if (existing?.status === "rejected") {
+    const existingApproval = await db.query.approvals.findFirst({
+      where: eq(approvals.proposalId, proposalId),
+    });
+    return { approved: false, reason: existingApproval?.reason ?? undefined };
+  }
+
+  // Block until user approves/rejects via the API, or timeout
+  return new Promise<{ approved: boolean; reason?: string }>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      unsubscribe();
+      reject(new Error(`Approval timeout for proposal ${proposalId}`));
+    }, timeoutMs);
+
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (event.type === "APPROVAL_GRANTED" && event.payload.proposalId === proposalId) {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve({ approved: true });
+      } else if (event.type === "APPROVAL_REJECTED" && event.payload.proposalId === proposalId) {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve({ approved: false, reason: event.payload.reason });
+      }
+    });
+  });
 }

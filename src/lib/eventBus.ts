@@ -25,18 +25,16 @@ class EventBus {
     const eventId = randomUUID();
     const eventWithId = { ...event, id: eventId };
 
-    try {
-      db.insert(events).values({
-        id: eventId,
-        runId: event.runId,
-        agentId: event.agentId,
-        type: event.type,
-        payload: event.payload,
-        timestamp: new Date(event.ts),
-      }).run();
-    } catch (e) {
+    void db.insert(events).values({
+      id: eventId,
+      runId: event.runId,
+      agentId: event.agentId,
+      type: event.type,
+      payload: event.payload,
+      timestamp: new Date(event.ts),
+    }).catch((e: unknown) => {
       console.error("Failed to persist event to database:", e);
-    }
+    });
 
     this.globalListeners.forEach((listener) => {
       try {

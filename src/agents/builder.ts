@@ -84,14 +84,6 @@ Start directly with the first heading.`;
             contentType: "text/markdown",
           },
         ],
-        proposals: [
-          {
-            kind: "write_artifact",
-            title: "Create Product Requirements Document",
-            rationale: "Persist the PRD as a single markdown artifact for review and implementation.",
-            risk: "low" as const,
-          },
-        ],
       };
     } catch (error) {
       return {

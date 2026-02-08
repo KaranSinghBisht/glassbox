@@ -21,9 +21,7 @@ export default function LandingPage() {
         <nav className="border-b border-white/5 bg-slate-950/50 backdrop-blur-xl sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
-              <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <Box className="w-5 h-5 text-white" />
-              </div>
+              <img src="/logo.png" alt="GlassBox" className="w-8 h-8 rounded-lg" />
               GlassBox
             </div>
             <div className="hidden md:flex gap-8 text-sm font-medium text-slate-400">
