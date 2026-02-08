@@ -247,40 +247,54 @@ ${JSON.stringify(schema, null, 2)}
 
 Return ONLY the JSON, no markdown or explanation.`;
 
-    const response = await this.generate({
-      prompt: structuredPrompt,
-      systemPrompt,
-      cache,
-      maxRetries,
-    });
+    this.currentModelIndex = 0;
 
-    try {
-      const parsed = this.extractJSON(response);
+    for (let structuredAttempt = 0; structuredAttempt < 2; structuredAttempt++) {
+      const messages: Groq.Chat.ChatCompletionMessageParam[] = [];
+      if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+      messages.push({ role: 'user', content: structuredPrompt });
 
-      if (zodSchema) {
-        // Try parsing as-is first
-        const validated = zodSchema.safeParse(parsed);
-        if (validated.success) {
-          return validated.data;
-        }
-
-        // If validation fails, retry with normalized string values (handles case mismatches from LLM)
-        const normalized = this.normalizeStringValues(parsed);
-        const retryValidated = zodSchema.safeParse(normalized);
-        if (retryValidated.success) {
-          return retryValidated.data;
-        }
-
-        throw new Error(`LLM response failed schema validation: ${validated.error.message}`);
+      let response: string;
+      try {
+        const result = await this.client.chat.completions.create({
+          model: this.getCurrentModel(),
+          messages,
+          temperature: 0.5,
+          max_tokens: 16384,
+          response_format: { type: 'json_object' },
+        });
+        response = result.choices[0]?.message?.content || '';
+        this.trackUsage(structuredPrompt + (systemPrompt || ''), response);
+      } catch {
+        response = await this.generate({ prompt: structuredPrompt, systemPrompt, cache, maxRetries });
       }
 
-      return parsed as T;
-    } catch (e) {
-      if (e instanceof Error && e.message.includes('schema validation')) {
-        throw e;
+      try {
+        const parsed = this.extractJSON(response);
+
+        if (zodSchema) {
+          const validated = zodSchema.safeParse(parsed);
+          if (validated.success) return validated.data;
+
+          const normalized = this.normalizeStringValues(parsed);
+          const retryValidated = zodSchema.safeParse(normalized);
+          if (retryValidated.success) return retryValidated.data;
+
+          if (structuredAttempt === 0) continue;
+          throw new Error(`LLM response failed schema validation: ${validated.error.message}`);
+        }
+
+        return parsed as T;
+      } catch (e) {
+        if (structuredAttempt === 0 && !(e instanceof Error && e.message.includes('schema validation'))) {
+          continue;
+        }
+        if (e instanceof Error && e.message.includes('schema validation')) throw e;
+        throw new Error(`Invalid JSON response from LLM: ${response.slice(0, 200)}...`);
       }
-      throw new Error(`Invalid JSON response from LLM: ${response.slice(0, 200)}...`);
     }
+
+    throw new Error('Structured generation failed after retries');
   }
 
   async generateStream(options: GenerateOptions & {

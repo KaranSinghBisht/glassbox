@@ -545,27 +545,24 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {rightTab === "ai" ? (
-            <div className="flex-1 overflow-hidden">
-              <ErrorBoundary fallbackTitle="Tambo streaming error">
-                <TamboThread />
-              </ErrorBoundary>
-            </div>
-          ) : (
-            <div className="flex-1 relative">
-              <ErrorBoundary fallbackTitle="Graph error">
-                <SwarmGraph ref={graphRef} className="bg-slate-950" />
-              </ErrorBoundary>
-              {!runId && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-slate-950/40">
-                  <div className="text-center opacity-40">
-                    <Cpu className="w-10 h-10 mx-auto mb-2 text-slate-700" />
-                    <p className="text-[11px] text-slate-600 font-mono">agents idle</p>
-                  </div>
+          <div className={cn("flex-1 overflow-hidden", rightTab !== "ai" && "hidden")}>
+            <ErrorBoundary fallbackTitle="Tambo streaming error">
+              <TamboThread />
+            </ErrorBoundary>
+          </div>
+          <div className={cn("flex-1 relative", rightTab !== "mesh" && "hidden")}>
+            <ErrorBoundary fallbackTitle="Graph error">
+              <SwarmGraph ref={graphRef} className="bg-slate-950" />
+            </ErrorBoundary>
+            {!runId && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-slate-950/40">
+                <div className="text-center opacity-40">
+                  <Cpu className="w-10 h-10 mx-auto mb-2 text-slate-700" />
+                  <p className="text-[11px] text-slate-600 font-mono">agents idle</p>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
 
         <TamboEventBridge events={events} />
